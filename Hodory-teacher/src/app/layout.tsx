@@ -44,8 +44,13 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.querySelector('meta[name="theme-color"]').setAttribute('content', '${META_THEME_COLORS.dark}')
+                const storedTheme = localStorage.getItem('theme')
+                if (storedTheme === 'system') localStorage.setItem('theme', 'light')
+
+                const activeTheme = localStorage.getItem('theme') || 'light'
+                const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+                if (metaThemeColor) {
+                  metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '${META_THEME_COLORS.dark}' : '${META_THEME_COLORS.light}')
                 }
               } catch (_) {}
             `
@@ -65,8 +70,8 @@ export default async function RootLayout({
         <NuqsAdapter>
           <ThemeProvider
             attribute='class'
-            defaultTheme='system'
-            enableSystem
+            defaultTheme='light'
+            enableSystem={false}
             disableTransitionOnChange
             enableColorScheme
           >
