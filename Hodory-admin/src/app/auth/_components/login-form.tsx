@@ -3,12 +3,13 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import * as React from 'react';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   return (
@@ -27,7 +28,10 @@ export function LoginForm() {
             body: JSON.stringify({ email, password })
           });
           if (!response.ok) throw new Error('Login failed');
-          router.push('/dashboard/overview');
+          const next = searchParams.get('next');
+          const destination =
+            next && next.startsWith('/') ? next : '/dashboard/overview';
+          router.replace(destination);
         } catch (error) {
           toast.error(
             error instanceof Error ? error.message : 'Unable to sign in.'

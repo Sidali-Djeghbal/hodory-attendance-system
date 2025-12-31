@@ -16,8 +16,11 @@ function getRoleFromCookie(request: NextRequest): string | undefined {
   if (!raw) return undefined;
   try {
     const json = atob(raw);
-    const parsed = JSON.parse(json) as { role?: string };
-    return parsed.role;
+    const parsed = JSON.parse(json) as {
+      role?: string;
+      user?: { role?: string };
+    };
+    return parsed.user?.role ?? parsed.role;
   } catch {
     return undefined;
   }
@@ -44,4 +47,3 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/((?!.*\\..*).*)']
 };
-
