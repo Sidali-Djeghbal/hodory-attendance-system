@@ -18,10 +18,16 @@ Hodory is an attendance management system for optimizing attendance tracking and
 - Admin app: https://hodory-admin.netlify.app/
 - Teacher app: https://hodory-teacher.netlify.app/
 
+## Screenshots
+
+| Admin | Teacher |
+| --- | --- |
+| ![Hodory Admin screenshot](public/admin.png) | ![Hodory Teacher screenshot](public/teacher.png) |
+
 ## Repo structure
 
-- `Hodory-admin/` — Admin frontend (Next.js)
-- `Hodory-teacher/` — Teacher frontend (Next.js)
+- `Hodory-admin/` — Admin frontend
+- `Hodory-teacher/` — Teacher frontend
 
 Each app is a standalone Next.js project with its own `package.json`.
 
