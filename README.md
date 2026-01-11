@@ -14,7 +14,7 @@
 [![Monorepo](https://img.shields.io/badge/monorepo-Hodory-blue)](#repo-structure)
 
 <p align="center">
-  <img src="public/logo-white.png" alt="Hodory logo" width="140" />
+  <img src="public/logo-card.png" alt="Hodory logo" width="140" />
 </p>
 
  Hodory is an attendance management system for optimizing attendance tracking and management in educational institutions.
