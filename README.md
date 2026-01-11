@@ -20,9 +20,13 @@ Hodory is an attendance management system for optimizing attendance tracking and
 
 ## Screenshots
 
-| Admin | Teacher |
-| --- | --- |
-| ![Hodory Admin screenshot](public/admin.png) | ![Hodory Teacher screenshot](public/teacher.png) |
+### Admin
+
+![Hodory Admin screenshot](public/admin.png)
+
+### Teacher
+
+![Hodory Teacher screenshot](public/teacher.png)
 
 ## Repo structure
 
