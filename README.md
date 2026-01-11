@@ -2,8 +2,6 @@
   <img src="public/banner.png" alt="Hodory banner" />
 </p>
 
-
-
 # Hodory Attendance System
 
 [![Next.js](https://img.shields.io/badge/Next.js-16%2B-black?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -16,11 +14,7 @@
 [![Monorepo](https://img.shields.io/badge/monorepo-Hodory-blue)](#repo-structure)
 
 <p align="center">
-  <img src="public/logo.svg" alt="Hodory logo" width="100"
-  style="border-radius:10px;
-  background-color:#fff;
-  padding:10px;"/>
- 
+  <img src="public/logo-white.png" alt="Hodory logo" width="140" />
 </p>
 
  Hodory is an attendance management system for optimizing attendance tracking and management in educational institutions.
