@@ -9,7 +9,7 @@
 [![Code style: Prettier](https://img.shields.io/badge/code%20style-Prettier-ff69b4.svg)](https://prettier.io/)
 [![Monorepo](https://img.shields.io/badge/monorepo-Hodory-blue)](#repo-structure)
 
-Hodory is an attendance management system with two web apps: an Admin dashboard and a Teacher app.
+Hodory is an attendance management system with two frontend apps (Admin + Teacher) that share the same backend (API).
 
 > Status: under development (not finished yet).
 
@@ -20,15 +20,28 @@ Hodory is an attendance management system with two web apps: an Admin dashboard 
 
 ## Repo structure
 
-- `Hodory-admin/` — admin dashboard app (Next.js)
-- `Hodory-teacher/` — teacher-facing app (Next.js)
+- `Hodory-admin/` — Admin frontend (Next.js)
+- `Hodory-teacher/` — Teacher frontend (Next.js)
 
 Each app is a standalone Next.js project with its own `package.json`.
 
-## What’s inside
+## Features (current / planned)
 
-- Admin: manage students/teachers/modules and monitor attendance (demo/seeded data in the current UI).
-- Teacher: start attendance sessions, track presence, and handle absence/justifications (workflow evolving).
+- Admin frontend
+  - Attendance monitoring dashboard
+  - Manage students / teachers / modules
+  - Module assignment flows + CSV helpers (import/export)
+- Teacher frontend
+  - Start / manage attendance sessions
+  - Track presence for a session
+  - Absence / justification review workflow (evolving)
+
+## Tech stack
+
+- Frontend: Next.js (App Router), React, TypeScript
+- UI: Tailwind CSS, shadcn/ui (Radix UI)
+- Tooling: Prettier, Bun (optional)
+- Notable libraries used in the apps: next-themes, nuqs, Sentry, Recharts, KBar, Sonner
 
 ## Development
 
