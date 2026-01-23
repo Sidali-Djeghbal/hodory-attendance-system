@@ -7,6 +7,7 @@ import {
   IconUserStar,
   IconBook2,
   IconArrowsShuffle,
+  IconCalendarTime,
   IconLogout
 } from '@tabler/icons-react';
 
@@ -22,5 +23,6 @@ export const Icons = {
   teachers: IconUserStar,
   modules: IconBook2,
   assignments: IconArrowsShuffle,
+  schedules: IconCalendarTime,
   logout: IconLogout
 };

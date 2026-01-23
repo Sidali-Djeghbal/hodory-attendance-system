@@ -72,5 +72,13 @@ export const navItems: NavItem[] = [
     shortcut: ['m', 'a'],
     isActive: false,
     items: []
+  },
+  {
+    title: 'Schedules',
+    url: '/dashboard/schedules',
+    icon: 'schedules',
+    shortcut: ['s', 'c'],
+    isActive: false,
+    items: []
   }
 ];

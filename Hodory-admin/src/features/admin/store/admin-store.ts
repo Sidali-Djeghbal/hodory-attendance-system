@@ -9,6 +9,13 @@ import {
   type SemesterCode,
   type SpecialityCode
 } from '@/features/admin/catalog/levels';
+import {
+  createEmptyLevelSchedule,
+  SCHEDULE_SLOTS,
+  type LevelSchedule,
+  type ScheduleDay,
+  type ScheduleSlot
+} from '@/features/admin/schedules/schedule-model';
 
 export type AccountStatus = 'active' | 'inactive';
 
@@ -58,15 +65,17 @@ export type AttendanceSession = {
 };
 
 export type AdminStore = {
-  version: 5;
+  version: 6;
   students: Student[];
   teachers: Teacher[];
   modules: Module[];
   assignments: ModuleAssignment[];
   sessions: AttendanceSession[];
+  schedules: LevelSchedule[];
 };
 
-const STORAGE_KEY = 'hodory_admin_store_v5';
+const STORAGE_KEY = 'hodory_admin_store_v6';
+const LEGACY_STORAGE_KEY = 'hodory_admin_store_v5';
 
 function pad4(value: number) {
   return String(value).padStart(4, '0');
@@ -95,6 +104,88 @@ function toIsoDate(date: Date) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+type AdminStoreV5 = Omit<AdminStore, 'version' | 'schedules'> & { version: 5 };
+
+function migrateV5Store(next: AdminStoreV5): AdminStore {
+  return {
+    ...next,
+    version: 6,
+    schedules: []
+  };
+}
+
+function normalizeScheduleTime(time: string): ScheduleSlot | null {
+  if ((SCHEDULE_SLOTS as readonly string[]).includes(time))
+    return time as ScheduleSlot;
+
+  const map: Record<string, ScheduleSlot> = {
+    '08:00-09:30': '08:00-09:30',
+    '09:45-11:15': '09:30-11:00',
+    '11:30-13:00': '11:00-12:30',
+    '14:00-15:30': '14:00-15:30',
+    '15:45-17:15': '15:30-17:00'
+  };
+
+  return map[time] ?? null;
+}
+
+function normalizeSchedules(
+  schedules: LevelSchedule[],
+  now = new Date()
+): LevelSchedule[] {
+  return schedules.map((schedule) => {
+    const nextEntries = schedule.entries
+      .map((entry) => {
+        const time = normalizeScheduleTime(entry.time);
+        if (!time) return null;
+        return {
+          ...entry,
+          time,
+          id: `${entry.day}|${time}`
+        };
+      })
+      .filter(Boolean) as LevelSchedule['entries'];
+
+    return {
+      ...schedule,
+      lastUpdated: schedule.lastUpdated || now.toISOString(),
+      entries: nextEntries
+    };
+  });
+}
+
+function buildDemoScheduleForLevel(
+  levelCode: LevelCode,
+  modules: Module[],
+  now = new Date()
+): LevelSchedule | null {
+  const candidates = modules
+    .filter((m) => m.levelCode === levelCode)
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code))
+    .slice(0, Math.min(5, SCHEDULE_SLOTS.length));
+
+  if (!candidates.length) return null;
+
+  const days: ScheduleDay[] = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Sunday'
+  ];
+  const times = SCHEDULE_SLOTS.slice(0, candidates.length) as ScheduleSlot[];
+
+  const schedule = createEmptyLevelSchedule(levelCode, now);
+  schedule.entries = candidates.map((module, index) => ({
+    id: `${days[index] ?? 'Monday'}|${times[index] ?? '08:00-09:30'}`,
+    day: days[index] ?? 'Monday',
+    time: times[index] ?? '08:00-09:30',
+    moduleCode: module.code
+  }));
+  return schedule;
 }
 
 function seedStore(now = new Date()): AdminStore {
@@ -135,7 +226,8 @@ function seedStore(now = new Date()): AdminStore {
 
   const assignments: ModuleAssignment[] = modules.flatMap((module, index) => {
     const primary = teachers[index % teachers.length]!;
-    const secondary = rand() > 0.7 ? teachers[(index + 3) % teachers.length]! : null;
+    const secondary =
+      rand() > 0.7 ? teachers[(index + 3) % teachers.length]! : null;
     const rows: ModuleAssignment[] = [
       {
         moduleCode: module.code,
@@ -155,7 +247,8 @@ function seedStore(now = new Date()): AdminStore {
 
   const students: Student[] = Array.from({ length: 80 }).map((_, index) => {
     const studentId = `STU-${pad4(index + 1)}`;
-    const levelCode = LEVELS[Math.floor(rand() * LEVELS.length)]?.code ?? 'LMD1';
+    const levelCode =
+      LEVELS[Math.floor(rand() * LEVELS.length)]?.code ?? 'LMD1';
     const levelModules = modules
       .filter((m) => m.levelCode === levelCode)
       .map((m) => m.code);
@@ -184,7 +277,9 @@ function seedStore(now = new Date()): AdminStore {
   for (const module of modules) {
     enrolledByModule.set(
       module.code,
-      students.filter((s) => s.modules.includes(module.code)).map((s) => s.studentId)
+      students
+        .filter((s) => s.modules.includes(module.code))
+        .map((s) => s.studentId)
     );
   }
 
@@ -201,21 +296,32 @@ function seedStore(now = new Date()): AdminStore {
         const teacherId = teacherIds[Math.floor(rand() * teacherIds.length)]!;
         const enrolled = enrolledByModule.get(module.code) ?? [];
         const expectedCount = Math.max(enrolled.length, 12);
-        const absentCount = Math.max(0, Math.round(expectedCount * (0.08 + rand() * 0.12)));
+        const absentCount = Math.max(
+          0,
+          Math.round(expectedCount * (0.08 + rand() * 0.12))
+        );
         const absentStudents = enrolled
           .slice()
           .sort(() => rand() - 0.5)
           .slice(0, Math.min(absentCount, enrolled.length));
 
-        const absences: AttendanceSession['absences'] = absentStudents.map((studentId) => {
-          const r = rand();
-          const type: AbsenceType = r < 0.5 ? 'unjustified' : r < 0.8 ? 'justified' : 'pending';
-          return { studentId, type };
-        });
+        const absences: AttendanceSession['absences'] = absentStudents.map(
+          (studentId) => {
+            const r = rand();
+            const type: AbsenceType =
+              r < 0.5 ? 'unjustified' : r < 0.8 ? 'justified' : 'pending';
+            return { studentId, type };
+          }
+        );
 
         const presentCount = expectedCount - absences.length;
         const startAt = new Date(day);
-        startAt.setHours(8 + Math.floor(rand() * 7), rand() > 0.5 ? 0 : 30, 0, 0);
+        startAt.setHours(
+          8 + Math.floor(rand() * 7),
+          rand() > 0.5 ? 0 : 30,
+          0,
+          0
+        );
         sessions.push({
           id: `SES-${pad4(sessionSeq++)}`,
           moduleCode: module.code,
@@ -238,20 +344,53 @@ function seedStore(now = new Date()): AdminStore {
     if (target) target.status = 'active';
   }
 
-  return { version: 5, students, teachers, modules, assignments, sessions };
+  const schedules: LevelSchedule[] = [];
+  const demoLevels: LevelCode[] = ['LMD1', 'LMD2', 'ING3'];
+  for (const levelCode of demoLevels) {
+    const schedule = buildDemoScheduleForLevel(levelCode, modules, now);
+    if (schedule) schedules.push(schedule);
+  }
+
+  return {
+    version: 6,
+    students,
+    teachers,
+    modules,
+    assignments,
+    sessions,
+    schedules
+  };
 }
 
 export function loadAdminStore(): AdminStore {
   if (!isBrowser()) return seedStore();
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return seedStore();
-  try {
-    const parsed = JSON.parse(raw) as Partial<AdminStore>;
-    if (parsed.version !== 5) return seedStore();
-    return parsed as AdminStore;
-  } catch {
-    return seedStore();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Partial<AdminStore>;
+      if (parsed.version === 6) {
+        const ready = parsed as AdminStore;
+        return {
+          ...ready,
+          schedules: normalizeSchedules(ready.schedules ?? [])
+        };
+      }
+    } catch {
+      // ignore and fall back to legacy/seed
+    }
   }
+
+  const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (legacyRaw) {
+    try {
+      const parsed = JSON.parse(legacyRaw) as Partial<AdminStoreV5>;
+      if (parsed.version === 5) return migrateV5Store(parsed as AdminStoreV5);
+    } catch {
+      // ignore and seed
+    }
+  }
+
+  return seedStore();
 }
 
 export function saveAdminStore(next: AdminStore) {
@@ -260,19 +399,31 @@ export function saveAdminStore(next: AdminStore) {
 }
 
 export function useAdminStore() {
-  const [store, setStore] = React.useState<AdminStore>(() => loadAdminStore());
+  const hasLoadedFromStorage = React.useRef(false);
+  const [store, setStore] = React.useState<AdminStore>(() =>
+    // Keep the initial render deterministic to avoid hydration mismatches.
+    // We load the real store from `localStorage` after mount.
+    seedStore(new Date('2026-01-01T00:00:00.000Z'))
+  );
 
-  const updateStore = React.useCallback((updater: (current: AdminStore) => AdminStore) => {
-    setStore((current) => {
-      const next = updater(current);
-      saveAdminStore(next);
-      return next;
-    });
-  }, []);
+  const updateStore = React.useCallback(
+    (updater: (current: AdminStore) => AdminStore) => {
+      setStore((current) => {
+        const next = updater(current);
+        if (hasLoadedFromStorage.current) saveAdminStore(next);
+        return next;
+      });
+    },
+    []
+  );
 
   React.useEffect(() => {
-    saveAdminStore(store);
-  }, [store]);
+    if (!isBrowser()) return;
+    const loaded = loadAdminStore();
+    hasLoadedFromStorage.current = true;
+    saveAdminStore(loaded);
+    setStore(loaded);
+  }, []);
 
   return { store, setStore: updateStore };
 }
