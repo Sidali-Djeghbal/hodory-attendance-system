@@ -5,8 +5,6 @@ export type User = {
 	full_name: string;
 	email: string;
 	departement: string;
-	is_active: boolean;
-	is_superuser: boolean;
 	role: Role;
 }
 
