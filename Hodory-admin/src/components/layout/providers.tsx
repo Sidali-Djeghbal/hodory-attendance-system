@@ -1,17 +1,22 @@
 'use client';
 import React from 'react';
 import { ActiveThemeProvider } from '../active-theme';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 export default function Providers({
-  activeThemeValue,
-  children
+	activeThemeValue,
+	children
 }: {
-  activeThemeValue: string;
-  children: React.ReactNode;
+	activeThemeValue: string;
+	children: React.ReactNode;
 }) {
-  return (
-    <ActiveThemeProvider initialTheme={activeThemeValue}>
-      {children}
-    </ActiveThemeProvider>
-  );
+	return (
+		<QueryClientProvider client={queryClient}>
+			<ActiveThemeProvider initialTheme={activeThemeValue}>
+				{children}
+			</ActiveThemeProvider>
+		</QueryClientProvider>
+	);
 }
