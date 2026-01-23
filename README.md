@@ -22,12 +22,6 @@
 > Status: under development (not finished yet).
 
 
-
-## Live previews
-
-- Admin app: https://hodory-admin.netlify.app/
-- Teacher app: https://hodory-teacher.netlify.app/
-
 ## Screenshots
 
 ### Admin
