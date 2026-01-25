@@ -6,8 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AttendanceProvider } from '@/features/overview/components/attendance-context';
 import { useSessionState } from '@/features/session/session-context';
+import { useAuth } from '@/features/auth/auth-context';
+import { usePendingJustificationsCount } from '@/features/justifications/use-pending-justifications-count';
+import { getMyModules, getTeacherSessions, type TeacherSession } from '@/lib/teacher-api';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import * as React from 'react';
 
 export default function OverViewLayout({
   bar_stats,
@@ -17,12 +21,75 @@ export default function OverViewLayout({
   area_stats: ReactNode;
 }) {
   const { isActive, code, module, room, remainingSeconds } = useSessionState();
+  const { token } = useAuth();
+  const pendingJustifications = usePendingJustificationsCount();
   const remainingMinutes = Math.max(Math.ceil(remainingSeconds / 60), 0);
+  const [todaySessionsCount, setTodaySessionsCount] = React.useState<number | null>(null);
+  const [nextSessionLabel, setNextSessionLabel] = React.useState<string>('—');
+  const [defaultModule, setDefaultModule] = React.useState('COMPIL');
+  const [excludedRecordsCount, setExcludedRecordsCount] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [modules, sessionsResponse] = await Promise.all([
+          getMyModules(token),
+          getTeacherSessions(token)
+        ]);
+        if (cancelled) return;
+
+        const firstModuleCode = modules.modules?.[0]?.module_code;
+        if (firstModuleCode) setDefaultModule(firstModuleCode);
+
+        const now = new Date();
+        const sameDay = (a: Date, b: Date) =>
+          a.getFullYear() === b.getFullYear() &&
+          a.getMonth() === b.getMonth() &&
+          a.getDate() === b.getDate();
+
+        const sessions: TeacherSession[] = sessionsResponse.sessions ?? [];
+        const todays = sessions.filter((s) => sameDay(new Date(s.date_time), now));
+        setTodaySessionsCount(todays.length);
+
+        const upcoming = sessions
+          .filter((s) => new Date(s.date_time).getTime() > now.getTime())
+          .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime())[0];
+
+        if (upcoming) {
+          const time = new Intl.DateTimeFormat('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }).format(new Date(upcoming.date_time));
+          setNextSessionLabel(`${upcoming.module.code} - ${time}`);
+        } else {
+          setNextSessionLabel('No upcoming sessions');
+        }
+
+        // This is a count of excluded attendance records across sessions (not unique students).
+        const excluded = sessions.reduce((sum, s) => sum + (s.statistics?.excluded ?? 0), 0);
+        setExcludedRecordsCount(excluded);
+      } catch {
+        if (cancelled) return;
+        setTodaySessionsCount(null);
+        setNextSessionLabel('—');
+        setExcludedRecordsCount(null);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const summaryCards = [
     {
       title: "Today's sessions",
-      value: '3',
-      meta: 'Next: COMPIL - 11:00'
+      value: todaySessionsCount === null ? '—' : String(todaySessionsCount),
+      meta: `Next: ${nextSessionLabel}`
     },
     {
       title: 'Active session',
@@ -30,19 +97,20 @@ export default function OverViewLayout({
       meta: isActive ? `${remainingMinutes} min remaining` : 'Stopped'
     },
     {
-      title: 'Justifications',
-      value: '3',
-      meta: '1 urgent'
+      title: 'Pending justifications',
+      value:
+        pendingJustifications === null ? '—' : String(pendingJustifications),
+      meta: 'Requests awaiting your review'
     },
     {
-      title: 'Excluded students',
-      value: '4',
-      meta: 'Across your modules'
+      title: 'Excluded (records)',
+      value: excludedRecordsCount === null ? '—' : String(excludedRecordsCount),
+      meta: 'Across teacher sessions'
     }
   ];
 
   return (
-    <AttendanceProvider defaultModule='COMPIL'>
+    <AttendanceProvider defaultModule={defaultModule}>
       <PageContainer
         pageTitle='Dashboard'
         pageDescription='At-a-glance attendance control, live sessions, and quick actions.'

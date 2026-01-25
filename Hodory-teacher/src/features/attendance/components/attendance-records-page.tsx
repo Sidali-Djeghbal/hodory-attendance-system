@@ -36,86 +36,106 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { toast } from 'sonner';
 
-const moduleRows = [
-  {
-    code: 'COMPIL',
-    name: 'Compilation',
-    sessions: 8,
-    avgRate: '84%',
-    excluded: 2
-  },
-  {
-    code: 'AABDD',
-    name: 'Architecture and administration of databases',
-    sessions: 6,
-    avgRate: '88%',
-    excluded: 1
-  },
-  {
-    code: 'SOFENG',
-    name: 'Software Engineering',
-    sessions: 5,
-    avgRate: '79%',
-    excluded: 3
-  }
-];
+import { useAuth } from '@/features/auth/auth-context';
+import {
+  getMyModules,
+  getSessionAttendance,
+  getTeacherSessions,
+  type MyModulesResponse,
+  type SessionAttendanceResponse,
+  type TeacherSession
+} from '@/lib/teacher-api';
 
-const attendanceTrend = [
-  { session: 'S1', rate: 78 },
-  { session: 'S2', rate: 82 },
-  { session: 'S3', rate: 85 },
-  { session: 'S4', rate: 88 },
-  { session: 'S5', rate: 84 },
-  { session: 'S6', rate: 89 }
-];
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
 
-const stackedAttendance = [
-  { session: 'S1', present: 26, absent: 8 },
-  { session: 'S2', present: 28, absent: 6 },
-  { session: 'S3', present: 30, absent: 4 },
-  { session: 'S4', present: 29, absent: 5 },
-  { session: 'S5', present: 27, absent: 7 },
-  { session: 'S6', present: 31, absent: 3 }
-];
+function formatShort(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit'
+  }).format(date);
+}
 
-const sessionsTable = [
-  {
-    date: 'Oct 08, 11:00',
-    duration: '90 min',
-    rate: '84%',
-    present: '28/34'
-  },
-  {
-    date: 'Oct 01, 11:00',
-    duration: '90 min',
-    rate: '88%',
-    present: '30/34'
-  },
-  {
-    date: 'Sep 24, 11:00',
-    duration: '90 min',
-    rate: '81%',
-    present: '27/34'
-  }
-];
-
-const roster = [
-  { name: 'Ayoub N.', status: 'Present', risk: 'Low' },
-  { name: 'Lina R.', status: 'Absent-unjustified', risk: 'High' },
-  { name: 'Mehdi K.', status: 'Pending-justification', risk: 'Medium' },
-  { name: 'Sara B.', status: 'Absent-justified', risk: 'Low' }
-];
-
-const statusBadge: Record<string, string> = {
-  Present: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  'Absent-unjustified': 'bg-red-500/15 text-red-600 dark:text-red-400',
-  'Pending-justification': 'bg-muted text-muted-foreground',
-  'Absent-justified': 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-};
+function average(values: number[]) {
+  if (!values.length) return 0;
+  return (
+    Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+  );
+}
 
 export default function AttendanceRecordsPage() {
+  const { token } = useAuth();
   const [moduleSearch, setModuleSearch] = React.useState('');
+  const [modulesResponse, setModulesResponse] =
+    React.useState<MyModulesResponse | null>(null);
+  const [sessions, setSessions] = React.useState<TeacherSession[]>([]);
+  const [selectedModuleCode, setSelectedModuleCode] = React.useState<
+    string | null
+  >(null);
+  const [selectedSessionId, setSelectedSessionId] = React.useState<
+    number | null
+  >(null);
+  const [attendance, setAttendance] =
+    React.useState<SessionAttendanceResponse | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
+
+    Promise.all([getMyModules(token), getTeacherSessions(token)])
+      .then(([m, s]) => {
+        if (cancelled) return;
+        setModulesResponse(m);
+        setSessions(s.sessions ?? []);
+        const firstCode = m.modules?.[0]?.module_code ?? null;
+        setSelectedModuleCode((prev) => prev ?? firstCode);
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to load data.'
+        );
+      })
+      .finally(() => setIsLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const moduleRows = React.useMemo(() => {
+    const modules = modulesResponse?.modules ?? [];
+    return modules.map((m) => {
+      const byModule = sessions.filter((s) => s.module?.code === m.module_code);
+      const avgRate = average(
+        byModule.map((s) => s.statistics?.attendance_rate ?? 0)
+      );
+      const excluded = byModule.reduce(
+        (sum, s) => sum + (s.statistics?.excluded ?? 0),
+        0
+      );
+      return {
+        code: m.module_code,
+        name: m.module_name,
+        sessions: byModule.length,
+        avgRate,
+        excluded
+      };
+    });
+  }, [modulesResponse, sessions]);
 
   const filteredModules = React.useMemo(() => {
     const query = moduleSearch.toLowerCase().trim();
@@ -125,7 +145,78 @@ export default function AttendanceRecordsPage() {
         module.code.toLowerCase().includes(query) ||
         module.name.toLowerCase().includes(query)
     );
-  }, [moduleSearch]);
+  }, [moduleSearch, moduleRows]);
+
+  const sessionsForSelectedModule = React.useMemo(() => {
+    if (!selectedModuleCode) return [];
+    return sessions
+      .filter((s) => s.module?.code === selectedModuleCode)
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.date_time).getTime() - new Date(a.date_time).getTime()
+      );
+  }, [sessions, selectedModuleCode]);
+
+  React.useEffect(() => {
+    if (!sessionsForSelectedModule.length) {
+      setSelectedSessionId(null);
+      setAttendance(null);
+      return;
+    }
+    setSelectedSessionId((prev) => prev ?? sessionsForSelectedModule[0]!.session_id);
+  }, [sessionsForSelectedModule]);
+
+  React.useEffect(() => {
+    if (!token || !selectedSessionId) return;
+    let cancelled = false;
+    setAttendance(null);
+
+    getSessionAttendance(token, selectedSessionId)
+      .then((result) => {
+        if (cancelled) return;
+        setAttendance(result);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to load session.'
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedSessionId]);
+
+  const attendanceTrend = React.useMemo(() => {
+    return sessionsForSelectedModule
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.date_time).getTime() - new Date(b.date_time).getTime()
+      )
+      .slice(-6)
+      .map((s) => ({
+        session: formatShort(s.date_time),
+        rate: s.statistics?.attendance_rate ?? 0
+      }));
+  }, [sessionsForSelectedModule]);
+
+  const stackedAttendance = React.useMemo(() => {
+    return sessionsForSelectedModule
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.date_time).getTime() - new Date(b.date_time).getTime()
+      )
+      .slice(-6)
+      .map((s) => ({
+        session: formatShort(s.date_time),
+        present: s.statistics?.present ?? 0,
+        absent: s.statistics?.absent ?? 0
+      }));
+  }, [sessionsForSelectedModule]);
 
   const downloadFile = (filename: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
@@ -139,12 +230,12 @@ export default function AttendanceRecordsPage() {
 
   const exportModuleCsv = () => {
     const rows = [
-      ['Date', 'Duration', 'Attendance', 'Present'],
-      ...sessionsTable.map((session) => [
-        session.date,
-        session.duration,
-        session.rate,
-        session.present
+      ['Date/time', 'Duration (min)', 'Attendance %', 'Present/Total'],
+      ...sessionsForSelectedModule.map((s) => [
+        formatDateTime(s.date_time),
+        String(s.duration_minutes),
+        String(s.statistics?.attendance_rate ?? 0),
+        `${s.statistics?.present ?? 0}/${s.statistics?.total ?? 0}`
       ])
     ];
     const csv = rows.map((row) => row.join(',')).join('\n');
@@ -161,7 +252,7 @@ export default function AttendanceRecordsPage() {
         <CardHeader>
           <CardTitle>Attendance records</CardTitle>
           <CardDescription>
-            Track module-level attendance history and session details.
+            Module-level attendance history and session details (from DB).
           </CardDescription>
         </CardHeader>
       </Card>
@@ -169,7 +260,7 @@ export default function AttendanceRecordsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Module list</CardTitle>
-          <CardDescription>Quick metrics across your modules.</CardDescription>
+          <CardDescription>Metrics across your assigned modules.</CardDescription>
         </CardHeader>
         <CardContent className='grid gap-4'>
           <div className='grid gap-4 md:grid-cols-[1fr_220px_220px]'>
@@ -183,33 +274,54 @@ export default function AttendanceRecordsPage() {
               />
             </div>
           </div>
+
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Module</TableHead>
                 <TableHead>Total sessions</TableHead>
                 <TableHead>Avg attendance</TableHead>
-                <TableHead>Excluded students</TableHead>
+                <TableHead>Excluded (records)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredModules.map((module) => (
-                <TableRow key={module.code}>
-                  <TableCell className='font-medium'>
-                    {module.code} - {module.name}
-                  </TableCell>
-                  <TableCell>{module.sessions}</TableCell>
-                  <TableCell>{module.avgRate}</TableCell>
-                  <TableCell>{module.excluded}</TableCell>
-                </TableRow>
-              ))}
-              {filteredModules.length === 0 ? (
+              {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={4} className='text-muted-foreground'>
-                    No results.
+                    Loading…
                   </TableCell>
                 </TableRow>
-              ) : null}
+              ) : filteredModules.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className='text-muted-foreground'>
+                    No modules.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredModules.map((module) => (
+                  <TableRow
+                    key={module.code}
+                    className='cursor-pointer'
+                    onClick={() => {
+                      setSelectedModuleCode(module.code);
+                      setSelectedSessionId(null);
+                      setAttendance(null);
+                    }}
+                  >
+                    <TableCell className='font-medium'>
+                      {module.code} - {module.name}
+                      {module.code === selectedModuleCode ? (
+                        <Badge className='ml-2' variant='secondary'>
+                          Selected
+                        </Badge>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>{module.sessions}</TableCell>
+                    <TableCell>{module.avgRate}%</TableCell>
+                    <TableCell>{module.excluded}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -217,49 +329,27 @@ export default function AttendanceRecordsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Module detail - Compilation</CardTitle>
-          <CardDescription>Charts and KPIs for the selected module.</CardDescription>
+          <CardTitle>
+            Module detail{selectedModuleCode ? ` - ${selectedModuleCode}` : ''}
+          </CardTitle>
+          <CardDescription>Trend and per-session metrics.</CardDescription>
         </CardHeader>
         <CardContent className='grid gap-6'>
-          <div className='grid gap-4 md:grid-cols-4'>
-            <div className='rounded-lg border border-border/60 p-3'>
-              <p className='text-xs text-muted-foreground'>Total sessions</p>
-              <p className='text-lg font-semibold'>8</p>
-            </div>
-            <div className='rounded-lg border border-border/60 p-3'>
-              <p className='text-xs text-muted-foreground'>Avg attendance</p>
-              <p className='text-lg font-semibold'>84%</p>
-            </div>
-            <div className='rounded-lg border border-border/60 p-3'>
-              <p className='text-xs text-muted-foreground'>Excluded students</p>
-              <p className='text-lg font-semibold'>2</p>
-            </div>
-            <div className='rounded-lg border border-border/60 p-3'>
-              <p className='text-xs text-muted-foreground'>
-                Near exclusion threshold
-              </p>
-              <p className='text-lg font-semibold'>3</p>
-            </div>
-          </div>
-
-          <div className='grid gap-4 lg:grid-cols-2'>
+          <div className='grid gap-6 lg:grid-cols-2'>
             <Card>
               <CardHeader>
-                <CardTitle>Attendance rate per session</CardTitle>
-                <CardDescription>Line chart across the term.</CardDescription>
+                <CardTitle>Attendance trend</CardTitle>
+                <CardDescription>Rate over recent sessions.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer
                   className='h-[260px]'
                   config={{
-                    rate: {
-                      label: 'Attendance rate',
-                      color: 'var(--color-chart-1)'
-                    }
+                    rate: { label: 'Rate', color: 'var(--color-chart-1)' }
                   }}
                 >
                   <ResponsiveContainer>
-                    <LineChart data={attendanceTrend}>
+                    <LineChart data={attendanceTrend} margin={{ left: 0, right: 12 }}>
                       <CartesianGrid strokeDasharray='3 3' vertical={false} />
                       <XAxis dataKey='session' tickLine={false} axisLine={false} />
                       <YAxis tickLine={false} axisLine={false} />
@@ -297,32 +387,33 @@ export default function AttendanceRecordsPage() {
                     <YAxis tickLine={false} axisLine={false} />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    <Bar
-                      dataKey='present'
-                      stackId='a'
-                      fill='var(--color-present)'
-                    />
-                    <Bar
-                      dataKey='absent'
-                      stackId='a'
-                      fill='var(--color-absent)'
-                    />
+                    <Bar dataKey='present' stackId='a' fill='var(--color-present)' />
+                    <Bar dataKey='absent' stackId='a' fill='var(--color-absent)' />
                   </BarChart>
                 </ChartContainer>
               </CardContent>
             </Card>
           </div>
+
           <Card>
             <CardHeader>
               <CardTitle>Sessions</CardTitle>
-              <CardDescription>Click a session to open detail.</CardDescription>
+              <CardDescription>Select a session to view attendance.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className='flex flex-wrap items-center justify-between gap-2'>
-                <Button variant='outline' onClick={exportModuleCsv}>
+                <Button
+                  variant='outline'
+                  onClick={exportModuleCsv}
+                  disabled={!selectedModuleCode}
+                >
                   Export module records (CSV)
                 </Button>
-                <Button variant='outline' onClick={exportModulePdf}>
+                <Button
+                  variant='outline'
+                  onClick={exportModulePdf}
+                  disabled={!selectedModuleCode}
+                >
                   Export module records (PDF)
                 </Button>
               </div>
@@ -337,21 +428,35 @@ export default function AttendanceRecordsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sessionsTable.map((session) => (
-                    <TableRow key={session.date}>
-                      <TableCell className='font-medium'>
-                        {session.date}
-                      </TableCell>
-                      <TableCell>{session.duration}</TableCell>
-                      <TableCell>{session.rate}</TableCell>
-                      <TableCell>{session.present}</TableCell>
-                      <TableCell>
-                        <Button size='sm' variant='ghost'>
-                          Export
-                        </Button>
+                  {sessionsForSelectedModule.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className='text-muted-foreground'>
+                        No sessions for this module.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    sessionsForSelectedModule.map((s) => (
+                      <TableRow key={s.session_id}>
+                        <TableCell className='font-medium'>
+                          {formatDateTime(s.date_time)}
+                        </TableCell>
+                        <TableCell>{s.duration_minutes} min</TableCell>
+                        <TableCell>{s.statistics?.attendance_rate ?? 0}%</TableCell>
+                        <TableCell>
+                          {s.statistics?.present ?? 0}/{s.statistics?.total ?? 0}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            onClick={() => setSelectedSessionId(s.session_id)}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -359,39 +464,59 @@ export default function AttendanceRecordsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Session detail - Oct 08</CardTitle>
-              <CardDescription>
-                Full roster with status and sorting controls.
-              </CardDescription>
+              <CardTitle>Session detail</CardTitle>
+              <CardDescription>Roster from the selected session.</CardDescription>
             </CardHeader>
             <CardContent className='grid gap-4'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Risk</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roster.map((student) => (
-                    <TableRow key={student.name}>
-                      <TableCell className='font-medium'>
-                        {student.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={statusBadge[student.status]}
-                          variant='secondary'
-                        >
-                          {student.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{student.risk}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {!selectedSessionId ? (
+                <p className='text-muted-foreground text-sm'>Select a session.</p>
+              ) : !attendance ? (
+                <p className='text-muted-foreground text-sm'>Loading…</p>
+              ) : (
+                <>
+                  <div className='flex flex-wrap gap-2 text-sm'>
+                    <Badge variant='secondary'>Code: {attendance.share_code}</Badge>
+                    <Badge variant='secondary'>
+                      Present: {attendance.statistics.present}
+                    </Badge>
+                    <Badge variant='secondary'>
+                      Absent: {attendance.statistics.absent}
+                    </Badge>
+                    <Badge variant='secondary'>
+                      Rate: {attendance.statistics.attendance_rate}%
+                    </Badge>
+                  </div>
+
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Absences</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attendance.students.map((row) => (
+                        <TableRow key={row.attendance_id}>
+                          <TableCell className='font-medium'>
+                            {row.student?.full_name ??
+                              row.enrollment?.student_name ??
+                              'Unknown'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant='secondary'>{row.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {row.enrollment
+                              ? `${row.enrollment.number_of_absences} (${row.enrollment.number_of_absences_justified} justified)`
+                              : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
+              )}
             </CardContent>
           </Card>
         </CardContent>
@@ -399,3 +524,4 @@ export default function AttendanceRecordsPage() {
     </div>
   );
 }
+

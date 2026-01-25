@@ -43,20 +43,39 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icons } from '../icons';
-import { demoUser } from '@/constants/demo-user';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/features/auth/auth-context';
+import { toAvatarUser } from '@/features/auth/avatar-user';
+import { usePendingJustificationsCount } from '@/features/justifications/use-pending-justifications-count';
 
 export default function AppSidebar() {
   const pathname = usePathname();
   const { state } = useSidebar();
   const router = useRouter();
   const { isActive } = useSessionState();
+  const { user, logout } = useAuth();
+  const avatarUser = toAvatarUser(user);
+  const pendingJustificationsCount = usePendingJustificationsCount();
   const filteredItems = useFilteredNavItems(
-    navItems.map((item) =>
-      item.title === 'Active Session'
-        ? { ...item, visible: isActive }
-        : item
-    )
+    navItems.map((item) => {
+      let next = item;
+
+      if (item.title === 'Active Session') {
+        next = { ...next, visible: isActive };
+      }
+
+      if (item.title === 'Justifications') {
+        next = {
+          ...next,
+          badge:
+            pendingJustificationsCount && pendingJustificationsCount > 0
+              ? pendingJustificationsCount
+              : undefined
+        };
+      }
+
+      return next;
+    })
   );
 
   return (
@@ -164,7 +183,7 @@ export default function AppSidebar() {
                   <UserAvatarProfile
                     className='h-8 w-8 rounded-lg'
                     showInfo
-                    user={demoUser}
+                    user={avatarUser}
                   />
                   <IconChevronsDown className='ml-auto size-4' />
                 </SidebarMenuButton>
@@ -180,7 +199,7 @@ export default function AppSidebar() {
                     <UserAvatarProfile
                       className='h-8 w-8 rounded-lg'
                       showInfo
-                      user={demoUser}
+                      user={avatarUser}
                     />
                   </div>
                 </DropdownMenuLabel>
@@ -195,7 +214,12 @@ export default function AppSidebar() {
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/auth/login')}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    logout();
+                    router.replace('/auth/login');
+                  }}
+                >
                   <IconLogout className='mr-2 h-4 w-4' />
                   Logout
                 </DropdownMenuItem>

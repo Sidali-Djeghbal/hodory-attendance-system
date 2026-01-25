@@ -19,6 +19,16 @@ export function AttendanceProvider({
   defaultModule?: string;
 }) {
   const [selectedModule, setSelectedModule] = React.useState(defaultModule);
+  const defaultRef = React.useRef(defaultModule);
+
+  React.useEffect(() => {
+    const previous = defaultRef.current;
+    defaultRef.current = defaultModule;
+    // If the selection was never changed (still on previous default), keep it in sync.
+    if (selectedModule === previous) {
+      setSelectedModule(defaultModule);
+    }
+  }, [defaultModule, selectedModule]);
 
   return (
     <AttendanceContext.Provider value={{ selectedModule, setSelectedModule }}>

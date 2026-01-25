@@ -11,10 +11,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { useRouter } from 'next/navigation';
-import { demoUser } from '@/constants/demo-user';
 import { IconLogout, IconUserCircle } from '@tabler/icons-react';
+import { useAuth } from '@/features/auth/auth-context';
+import { toAvatarUser } from '@/features/auth/avatar-user';
 export function UserNav() {
   const router = useRouter();
+  const { user, logout } = useAuth();
+  const avatarUser = toAvatarUser(user);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -22,8 +25,8 @@ export function UserNav() {
           variant='ghost'
           className='relative flex-row-reverse flex h-8 items-center gap-2 rounded-full px-2'
         >
-          <UserAvatarProfile user={demoUser} />
-          <span className='text-sm font-medium'>{demoUser.fullName}</span>
+          <UserAvatarProfile user={avatarUser} />
+          <span className='text-sm font-medium'>{avatarUser?.fullName ?? ''}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -35,10 +38,10 @@ export function UserNav() {
         <DropdownMenuLabel className='font-normal'>
           <div className='flex flex-col space-y-1'>
             <p className='text-sm leading-none font-medium'>
-              {demoUser.fullName}
+              {avatarUser?.fullName ?? ''}
             </p>
             <p className='text-muted-foreground text-xs leading-none'>
-              {demoUser.emailAddresses[0].emailAddress}
+              {avatarUser?.emailAddresses[0]?.emailAddress ?? ''}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -50,7 +53,12 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push('/auth/login')}>
+        <DropdownMenuItem
+          onClick={() => {
+            logout();
+            router.replace('/auth/login');
+          }}
+        >
           <IconLogout className='mr-2 h-4 w-4' />
           Logout
         </DropdownMenuItem>

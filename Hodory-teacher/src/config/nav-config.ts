@@ -32,8 +32,6 @@ import { NavItem } from '@/types';
  * Note: The `visible` function is deprecated but still supported for backward compatibility.
  * Use the `access` property for new items.
  */
-const pendingJustifications = 3;
-
 export const navItems: NavItem[] = [
   {
     title: 'Dashboard',
@@ -72,7 +70,6 @@ export const navItems: NavItem[] = [
     title: 'Justifications',
     url: '/dashboard/justifications',
     icon: 'justifications',
-    badge: pendingJustifications,
     shortcut: ['p', 'j'],
     isActive: false,
     items: []

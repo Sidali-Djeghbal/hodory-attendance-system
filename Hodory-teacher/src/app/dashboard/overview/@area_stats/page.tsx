@@ -21,53 +21,51 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import * as React from 'react';
+import { useAuth } from '@/features/auth/auth-context';
+import { getTeacherSessions, type TeacherSession } from '@/lib/teacher-api';
 
-const moduleTrends: Record<string, { session: string; rate: number }[]> = {
-  COMPIL: [
-    { session: 'S1', rate: 78 },
-    { session: 'S2', rate: 83 },
-    { session: 'S3', rate: 81 },
-    { session: 'S4', rate: 86 },
-    { session: 'S5', rate: 84 },
-    { session: 'S6', rate: 89 }
-  ],
-  AABDD: [
-    { session: 'S1', rate: 88 },
-    { session: 'S2', rate: 90 },
-    { session: 'S3', rate: 92 },
-    { session: 'S4', rate: 87 },
-    { session: 'S5', rate: 91 },
-    { session: 'S6', rate: 89 }
-  ],
-  SOFENG: [
-    { session: 'S1', rate: 76 },
-    { session: 'S2', rate: 79 },
-    { session: 'S3', rate: 82 },
-    { session: 'S4', rate: 84 },
-    { session: 'S5', rate: 81 },
-    { session: 'S6', rate: 86 }
-  ],
-  ALGDS: [
-    { session: 'S1', rate: 72 },
-    { session: 'S2', rate: 75 },
-    { session: 'S3', rate: 77 },
-    { session: 'S4', rate: 79 },
-    { session: 'S5', rate: 74 },
-    { session: 'S6', rate: 78 }
-  ],
-  NETSYS: [
-    { session: 'S1', rate: 84 },
-    { session: 'S2', rate: 86 },
-    { session: 'S3', rate: 80 },
-    { session: 'S4', rate: 82 },
-    { session: 'S5', rate: 85 },
-    { session: 'S6', rate: 83 }
-  ]
-};
+function formatShort(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit' }).format(date);
+}
 
 export default function AreaStats() {
   const { selectedModule } = useAttendanceSelection();
-  const data = moduleTrends[selectedModule] ?? moduleTrends.COMPIL;
+  const { token } = useAuth();
+  const [sessions, setSessions] = React.useState<TeacherSession[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
+    getTeacherSessions(token)
+      .then((result) => {
+        if (cancelled) return;
+        setSessions(result.sessions ?? []);
+      })
+      .finally(() => setIsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const data = React.useMemo(() => {
+    const filtered = sessions
+      .filter((s) => s.module?.code === selectedModule)
+      .slice()
+      .sort(
+        (a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime()
+      )
+      .slice(-6);
+
+    return filtered.map((s) => ({
+      session: formatShort(s.date_time),
+      rate: s.statistics?.attendance_rate ?? 0
+    }));
+  }, [sessions, selectedModule]);
 
   return (
     <Card>
@@ -76,6 +74,11 @@ export default function AreaStats() {
         <CardDescription>Selected module over time.</CardDescription>
       </CardHeader>
       <CardContent>
+        {isLoading ? (
+          <p className='text-muted-foreground text-sm'>Loading…</p>
+        ) : data.length === 0 ? (
+          <p className='text-muted-foreground text-sm'>No sessions for this module yet.</p>
+        ) : null}
         <ChartContainer
           className='h-[260px]'
           config={{

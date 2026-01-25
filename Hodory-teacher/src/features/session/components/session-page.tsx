@@ -23,30 +23,77 @@ import {
 } from '@/components/ui/select';
 import { IconAlertTriangle, IconEye, IconEyeOff } from '@tabler/icons-react';
 import { useSessionState } from '@/features/session/session-context';
-import { useRouter } from 'next/navigation';
-
-const modules = [
-  { code: 'AABDD', name: 'Architecture and administration of databases' },
-  { code: 'SOFENG', name: 'Software Engineering' },
-  { code: 'COMPIL', name: 'Compilation' }
-];
-
-const timetableContext = {
-  module: 'COMPIL',
-  room: 'E1. TP4',
-  date: 'Oct 08, 2024',
-  time: '11:00 - 12:30'
-};
+import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
+import { useAuth } from '@/features/auth/auth-context';
+import { getMyModules, type TeacherModuleSummary } from '@/lib/teacher-api';
 
 export default function SessionSetupPage() {
-  const { isActive, startSession } = useSessionState();
+  const {
+    isActive,
+    startSession,
+    hotspotPhase,
+    hotspotStatus,
+    hotspotError,
+    startHotspot,
+    stopHotspot,
+    refreshHotspot
+  } = useSessionState();
   const router = useRouter();
-  const [showPassword, setShowPassword] = React.useState(false);
+  const searchParams = useSearchParams();
+  const { token } = useAuth();
   const [mode, setMode] = React.useState('device');
-  const [selectedModule, setSelectedModule] = React.useState('COMPIL');
+  const [modules, setModules] = React.useState<TeacherModuleSummary[]>([]);
+  const [selectedModuleId, setSelectedModuleId] = React.useState<string>('');
   const [room, setRoom] = React.useState('E1. TP4');
+  const [isLoadingModules, setIsLoadingModules] = React.useState(false);
+  const [wifiSsid, setWifiSsid] = React.useState('Hodory-AP');
+  const [wifiSecurity, setWifiSecurity] =
+    React.useState<'WPA' | 'WEP' | 'nopass'>('WPA');
+  const [wifiPassword, setWifiPassword] = React.useState('AP-ATTEND');
+  const [showWifiPassword, setShowWifiPassword] = React.useState(false);
 
-  const hasAssignedModules = true;
+  React.useEffect(() => {
+    const moduleId = searchParams.get('moduleId');
+    const roomParam = searchParams.get('room');
+    if (moduleId) setSelectedModuleId(moduleId);
+    if (roomParam) setRoom(roomParam);
+    // Only run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    setIsLoadingModules(true);
+    getMyModules(token)
+      .then((result) => {
+        if (!mounted) return;
+        const next = result.modules ?? [];
+        setModules(next);
+        if (!selectedModuleId && next[0]) {
+          setSelectedModuleId(String(next[0].module_id));
+        }
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to load modules');
+      })
+      .finally(() => setIsLoadingModules(false));
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  React.useEffect(() => {
+    refreshHotspot().catch(() => null);
+  }, [refreshHotspot]);
+
+  const selectedModule = React.useMemo(() => {
+    const id = Number(selectedModuleId);
+    return modules.find((m) => m.module_id === id) ?? null;
+  }, [modules, selectedModuleId]);
+
+  const hasAssignedModules = modules.length > 0;
   const upcomingDates = React.useMemo(() => {
     const dates: { label: string; value: string; disabled?: boolean }[] = [];
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -107,10 +154,9 @@ export default function SessionSetupPage() {
           <CardContent className='grid gap-4'>
             <Alert>
               <IconAlertTriangle />
-              <AlertTitle>Timetable context</AlertTitle>
+              <AlertTitle>Session preview</AlertTitle>
               <AlertDescription>
-                {selectedModule} - {room} - {timetableContext.date} -{' '}
-                {timetableContext.time}
+                {(selectedModule?.module_code ?? '—')} - {room}
               </AlertDescription>
             </Alert>
 
@@ -118,16 +164,20 @@ export default function SessionSetupPage() {
               <div className='grid gap-2'>
                 <Label htmlFor='module'>Module</Label>
                 <Select
-                  value={selectedModule}
-                  onValueChange={setSelectedModule}
+                  value={selectedModuleId}
+                  onValueChange={setSelectedModuleId}
+                  disabled={isLoadingModules || !hasAssignedModules}
                 >
                   <SelectTrigger id='module'>
                     <SelectValue placeholder='Select module' />
                   </SelectTrigger>
                   <SelectContent>
                     {modules.map((module) => (
-                      <SelectItem key={module.code} value={module.code}>
-                        {module.code} - {module.name}
+                      <SelectItem
+                        key={module.module_id}
+                        value={String(module.module_id)}
+                      >
+                        {module.module_code} - {module.module_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -186,10 +236,28 @@ export default function SessionSetupPage() {
                 </p>
               </div>
               <Button
-                disabled={!hasAssignedModules || isActive}
-                onClick={() => {
-                  startSession({ module: selectedModule, room });
-                  router.push('/dashboard/active-session');
+                disabled={!hasAssignedModules || isActive || !selectedModule}
+                onClick={async () => {
+                  if (!selectedModule) return;
+                  try {
+                    await startSession({
+                      moduleId: selectedModule.module_id,
+                      moduleCode: selectedModule.module_code,
+                      moduleName: selectedModule.module_name,
+                      room,
+                      durationMinutes: 90,
+                      wifiSsid,
+                      wifiSecurity,
+                      wifiPassword: wifiSecurity === 'nopass' ? '' : wifiPassword
+                    });
+                    router.push('/dashboard/active-session');
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to start session'
+                    );
+                  }
                 }}
               >
                 Start session
@@ -229,47 +297,167 @@ export default function SessionSetupPage() {
             <div className='border-border/60 bg-muted/30 rounded-xl border p-4'>
               <div className='flex items-center justify-between'>
                 <p className='text-sm font-medium'>AP Status</p>
-                <Badge className='bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400'>
-                  AP Ready
+                <Badge
+                  variant={
+                    hotspotPhase === 'active'
+                      ? 'default'
+                      : hotspotPhase === 'error'
+                        ? 'destructive'
+                        : 'secondary'
+                  }
+                >
+                  {hotspotPhase === 'starting'
+                    ? 'Starting…'
+                    : hotspotPhase === 'active'
+                      ? 'Running'
+                      : hotspotPhase === 'inactive'
+                        ? 'Stopped'
+                        : hotspotPhase === 'error'
+                          ? 'Error'
+                          : 'Idle'}
                 </Badge>
               </div>
-              <div className='mt-4 grid gap-3 text-sm'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>SSID</span>
-                  <span className='font-medium'>Hodory-AP</span>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>Password</span>
-                  <span className='font-medium'>
-                    {showPassword ? 'AP-ATTEND' : '********'}
-                  </span>
+              {hotspotStatus && 'error' in hotspotStatus ? (
+                <p className='text-muted-foreground mt-3 text-xs'>
+                  {hotspotError ??
+                    hotspotStatus.error ??
+                    'Hotspot controls are only available in the Electron build.'}
+                </p>
+              ) : (
+                <p className='text-muted-foreground mt-3 text-xs'>
+                  {hotspotStatus?.isHotspotActive
+                    ? `Hotspot active on ${hotspotStatus.ifname}${
+                        hotspotStatus.ipv4Address
+                          ? ` · IP ${hotspotStatus.ipv4Address}`
+                          : ''
+                      }`
+                    : 'Hotspot not active. It will start when the session starts (Electron).'}
+                </p>
+              )}
+              <div className='mt-3 flex flex-wrap gap-2'>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={() => {
+                    refreshHotspot().catch(() => null);
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  size='sm'
+                  variant='secondary'
+                  onClick={() => {
+                    startHotspot({
+                      ssid: wifiSsid,
+                      security: wifiSecurity,
+                      password: wifiSecurity === 'nopass' ? undefined : wifiPassword
+                    }).catch(() => null);
+                  }}
+                  disabled={hotspotPhase === 'starting'}
+                >
+                  Start AP
+                </Button>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  onClick={() => {
+                    stopHotspot().catch(() => null);
+                  }}
+                  disabled={hotspotPhase === 'starting'}
+                >
+                  Stop AP
+                </Button>
+              </div>
+            </div>
+
+            <div className='grid gap-4 rounded-xl border border-border/60 bg-background p-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='wifi-ssid'>WiFi SSID (hotspot name)</Label>
+                <Input
+                  id='wifi-ssid'
+                  value={wifiSsid}
+                  onChange={(event) => setWifiSsid(event.target.value)}
+                  placeholder='Hodory-AP'
+                />
+              </div>
+
+              <div className='grid gap-2'>
+                <Label>Security</Label>
+                <Select
+                  value={wifiSecurity}
+                  onValueChange={(value) =>
+                    setWifiSecurity(value as 'WPA' | 'WEP' | 'nopass')
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='WPA'>WPA/WPA2</SelectItem>
+                    <SelectItem value='WEP'>WEP</SelectItem>
+                    <SelectItem value='nopass'>No password</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='grid gap-2'>
+                <Label htmlFor='wifi-password'>WiFi password</Label>
+                <div className='flex gap-2'>
+                  <Input
+                    id='wifi-password'
+                    type={showWifiPassword ? 'text' : 'password'}
+                    value={wifiPassword}
+                    onChange={(event) => setWifiPassword(event.target.value)}
+                    placeholder='AP-ATTEND'
+                    disabled={wifiSecurity === 'nopass'}
+                  />
                   <Button
+                    type='button'
                     size='icon'
-                    variant='ghost'
-                    className='h-8 w-8'
-                    onClick={() => setShowPassword((prev) => !prev)}
+                    variant='outline'
+                    onClick={() => setShowWifiPassword((prev) => !prev)}
+                    disabled={wifiSecurity === 'nopass'}
                   >
-                    {showPassword ? (
+                    {showWifiPassword ? (
                       <IconEyeOff className='h-4 w-4' />
                     ) : (
                       <IconEye className='h-4 w-4' />
                     )}
                   </Button>
                 </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>Connected</span>
-                  <span className='font-medium'>18 devices</span>
-                </div>
+                <p className='text-muted-foreground text-xs'>
+                  These values are embedded in the session QR payload for the
+                  student app to use later.
+                </p>
               </div>
             </div>
 
             <Button
               className='w-full'
               variant='outline'
-              disabled={!hasAssignedModules || isActive}
-              onClick={() => {
-                startSession({ module: selectedModule, room });
-                router.push('/dashboard/active-session');
+              disabled={!hasAssignedModules || isActive || !selectedModule}
+              onClick={async () => {
+                if (!selectedModule) return;
+                try {
+                  await startSession({
+                    moduleId: selectedModule.module_id,
+                    moduleCode: selectedModule.module_code,
+                    moduleName: selectedModule.module_name,
+                    room,
+                    durationMinutes: 90,
+                    wifiSsid,
+                    wifiSecurity,
+                    wifiPassword: wifiSecurity === 'nopass' ? '' : wifiPassword
+                  });
+                  router.push('/dashboard/active-session');
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : 'Failed to start session'
+                  );
+                }
               }}
             >
               Start session

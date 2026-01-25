@@ -1,4 +1,6 @@
-import { demoUser } from '@/constants/demo-user';
+'use client';
+
+import * as React from 'react';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import {
   Card,
@@ -9,24 +11,38 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-
-const teacherProfile = {
-  fullName: demoUser.fullName,
-  email: demoUser.emailAddresses[0].emailAddress,
-  teacherId: 'TCH-2048',
-  department: 'Computer Science',
-  office: 'E8.6',
-  phone: '+213 672 86 56 39'
-};
-
-const assignedModules = [
-  { code: 'AABDD', name: 'Architecture and administration of databases' },
-  { code: 'SOFENG', name: 'Software Engineering' },
-  { code: 'COMPIL', name: 'Compilation' }
-];
+import { useAuth } from '@/features/auth/auth-context';
+import { toAvatarUser } from '@/features/auth/avatar-user';
+import { getMyModules, getTeacherProfile, type TeacherModuleSummary, type TeacherProfile } from '@/lib/teacher-api';
 
 export default function ProfileViewPage() {
+  const { token, user, logout } = useAuth();
+  const avatarUser = toAvatarUser(user);
+  const [profile, setProfile] = React.useState<TeacherProfile | null>(null);
+  const [modules, setModules] = React.useState<TeacherModuleSummary[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    setLoading(true);
+    Promise.all([getTeacherProfile(token), getMyModules(token)])
+      .then(([p, m]) => {
+        if (!mounted) return;
+        setProfile(p);
+        setModules(m.modules ?? []);
+      })
+      .catch(() => {
+        // If token is invalid, force logout.
+        logout();
+      })
+      .finally(() => setLoading(false));
+
+    return () => {
+      mounted = false;
+    };
+  }, [token, logout]);
+
   return (
     <div className='flex w-full flex-col gap-6 p-4'>
       <Card>
@@ -34,7 +50,7 @@ export default function ProfileViewPage() {
           <UserAvatarProfile
             className='h-14 w-14 rounded-xl'
             showInfo
-            user={demoUser}
+            user={avatarUser}
           />
           <div>
             <CardTitle>Personal information</CardTitle>
@@ -56,31 +72,37 @@ export default function ProfileViewPage() {
               <p className='text-muted-foreground text-xs uppercase'>
                 Full name
               </p>
-              <p className='text-sm font-medium'>{teacherProfile.fullName}</p>
+              <p className='text-sm font-medium'>
+                {loading ? 'Loading…' : (profile?.full_name ?? avatarUser?.fullName ?? '—')}
+              </p>
             </div>
             <div>
               <p className='text-muted-foreground text-xs uppercase'>Teacher ID</p>
-              <p className='text-sm font-medium'>{teacherProfile.teacherId}</p>
+              <p className='text-sm font-medium'>
+                {loading ? '—' : String(profile?.teacher_id ?? '—')}
+              </p>
             </div>
             <div>
               <p className='text-muted-foreground text-xs uppercase'>Email</p>
-              <p className='text-sm font-medium'>{teacherProfile.email}</p>
+              <p className='text-sm font-medium'>
+                {loading ? '—' : (profile?.email ?? avatarUser?.emailAddresses[0]?.emailAddress ?? '—')}
+              </p>
             </div>
             <div>
               <p className='text-muted-foreground text-xs uppercase'>
                 Department
               </p>
               <p className='text-sm font-medium'>
-                {teacherProfile.department}
+                {loading ? '—' : (profile?.department ?? user?.department ?? '—')}
               </p>
             </div>
             <div>
               <p className='text-muted-foreground text-xs uppercase'>Office</p>
-              <p className='text-sm font-medium'>{teacherProfile.office}</p>
+              <p className='text-sm font-medium'>—</p>
             </div>
             <div>
               <p className='text-muted-foreground text-xs uppercase'>Phone</p>
-              <p className='text-sm font-medium'>{teacherProfile.phone}</p>
+              <p className='text-sm font-medium'>—</p>
             </div>
           </CardContent>
         </Card>
@@ -91,11 +113,17 @@ export default function ProfileViewPage() {
             <CardDescription>Current teaching responsibilities.</CardDescription>
           </CardHeader>
           <CardContent className='flex flex-wrap gap-2'>
-            {assignedModules.map((module) => (
-              <Badge key={module.code} variant='secondary'>
-                {module.code} - {module.name}
-              </Badge>
-            ))}
+            {loading ? (
+              <Badge variant='secondary'>Loading…</Badge>
+            ) : modules.length ? (
+              modules.map((module) => (
+                <Badge key={module.teacher_module_id} variant='secondary'>
+                  {module.module_code} - {module.module_name}
+                </Badge>
+              ))
+            ) : (
+              <Badge variant='secondary'>No assigned modules</Badge>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -106,8 +134,13 @@ export default function ProfileViewPage() {
           <CardDescription>Account-level options.</CardDescription>
         </CardHeader>
         <CardContent className='flex flex-wrap gap-2'>
-          <Button asChild variant='destructive'>
-            <Link href='/auth/login'>Logout</Link>
+          <Button
+            variant='destructive'
+            onClick={() => {
+              logout();
+            }}
+          >
+            Logout
           </Button>
         </CardContent>
       </Card>

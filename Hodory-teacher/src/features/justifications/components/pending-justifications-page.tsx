@@ -23,45 +23,84 @@ import {
   TableRow
 } from '@/components/ui/table';
 import Link from 'next/link';
+import { useAuth } from '@/features/auth/auth-context';
+import { getTeacherJustifications, type TeacherJustificationsResponse } from '@/lib/teacher-api';
+import { toast } from 'sonner';
 
-const justifications = [
-  {
-    student: 'Lina R.',
-    id: 'STU-1182',
-    module: 'COMPIL',
-    absenceDate: 'Oct 01',
-    type: 'Medical',
-    submitted: 'Oct 02',
-    urgency: '2/3 unjustified',
-    status: 'Pending'
-  },
-  {
-    student: 'Mehdi K.',
-    id: 'STU-1201',
-    module: 'SOFENG',
-    absenceDate: 'Sep 24',
-    type: 'Administrative',
-    submitted: 'Sep 25',
-    urgency: '4/5 justified',
-    status: 'Pending'
-  },
-  {
-    student: 'Sara B.',
-    id: 'STU-1310',
-    module: 'AABDD',
-    absenceDate: 'Sep 20',
-    type: 'Personal',
-    submitted: 'Sep 21',
-    urgency: '1/3 unjustified',
-    status: 'Pending'
-  }
-];
+function formatShortDate(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit'
+  }).format(date);
+}
 
 export default function PendingJustificationsPage() {
+  const { token } = useAuth();
   const [search, setSearch] = React.useState('');
   const [moduleFilter, setModuleFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('pending');
   const [urgentOnly, setUrgentOnly] = React.useState(false);
+  const [data, setData] = React.useState<TeacherJustificationsResponse | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    setIsLoading(true);
+    const filter =
+      statusFilter === 'all'
+        ? undefined
+        : (statusFilter as 'pending' | 'approved' | 'rejected');
+    getTeacherJustifications(token, filter)
+      .then((result) => {
+        if (!mounted) return;
+        setData(result);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to load justifications');
+      })
+      .finally(() => setIsLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, [token, statusFilter]);
+
+  const rows = React.useMemo(() => {
+    const list = data?.justifications ?? [];
+    return list.map((entry) => {
+      const studentName = entry.student?.full_name ?? 'Unknown';
+      const studentId = entry.student?.student_id ?? null;
+      const moduleCode = entry.module?.code ?? '—';
+      const absenceDate = entry.session?.date_time
+        ? formatShortDate(entry.session.date_time)
+        : '—';
+      const submitted = formatShortDate(entry.created_at);
+      const status = String(entry.status ?? 'pending');
+
+      return {
+        key: entry.justification_id,
+        student: studentName,
+        id: studentId ? String(studentId) : '—',
+        module: moduleCode,
+        absenceDate,
+        type: entry.comment ? 'Provided' : '—',
+        submitted,
+        urgency: '—',
+        status
+      };
+    });
+  }, [data]);
+
+  const availableModules = React.useMemo(() => {
+    const codes = new Set<string>();
+    for (const row of rows) {
+      if (row.module && row.module !== '—') codes.add(row.module);
+    }
+    return Array.from(codes).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
 
   const filteredRows = React.useMemo(() => {
     const normalize = (value: string) => value.toLowerCase().trim();
@@ -78,7 +117,7 @@ export default function PendingJustificationsPage() {
       return current >= 2;
     };
 
-    return justifications.filter((row) => {
+    return rows.filter((row) => {
       const matchesSearch =
         !query ||
         normalize(row.student).includes(query) ||
@@ -92,7 +131,7 @@ export default function PendingJustificationsPage() {
 
       return matchesSearch && matchesModule && matchesStatus && matchesUrgent;
     });
-  }, [search, moduleFilter, statusFilter, urgentOnly]);
+  }, [search, moduleFilter, statusFilter, urgentOnly, rows]);
 
   return (
     <div className='flex w-full flex-col gap-6 p-4'>
@@ -128,9 +167,11 @@ export default function PendingJustificationsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='all'>All modules</SelectItem>
-                <SelectItem value='COMPIL'>COMPIL</SelectItem>
-                <SelectItem value='AABDD'>AABDD</SelectItem>
-                <SelectItem value='SOFENG'>SOFENG</SelectItem>
+                {availableModules.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {code}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -182,9 +223,9 @@ export default function PendingJustificationsPage() {
                 <TableHead />
               </TableRow>
             </TableHeader>
-            <TableBody>
+              <TableBody>
               {filteredRows.map((row) => (
-                <TableRow key={`${row.id}-${row.module}`}>
+                <TableRow key={row.key}>
                   <TableCell className='font-medium'>
                     {row.student} - {row.id}
                   </TableCell>
@@ -198,14 +239,20 @@ export default function PendingJustificationsPage() {
                   </TableCell>
                   <TableCell>
                     <Button asChild size='sm' variant='ghost'>
-                      <Link href='/dashboard/justifications/review'>
+                      <Link href={`/dashboard/justifications/review?id=${row.key}`}>
                         Review
                       </Link>
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredRows.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className='text-muted-foreground'>
+                    Loading…
+                  </TableCell>
+                </TableRow>
+              ) : filteredRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className='text-muted-foreground'>
                     No results.
