@@ -142,10 +142,10 @@ npm run dev
 
 <p>
   <a href="https://github.com/3boudi">
-    <img alt="3boudi" src="https://img.shields.io/badge/@3boudi-3boudi%20HALITIM%20amin-181717?logo=github&logoColor=white" />
+    <img alt="3boudi" src="https://img.shields.io/badge/@3boudi-HALITIM%20amin-181717?logo=github&logoColor=white" />
   </a>
   <a href="https://github.com/nerddude9000">
-    <img alt="nerddude9000" src="https://img.shields.io/badge/@nerddude9000-nerddude9000%20nerddude-181717?logo=github&logoColor=white" />
+    <img alt="nerddude9000" src="https://img.shields.io/badge/@nerddude9000-nerddude-181717?logo=github&logoColor=white" />
   </a>
   <a href="https://github.com/Sidali-Djeghbal">
     <img alt="Sidali-Djeghbal" src="https://img.shields.io/badge/@Sidali--Djeghbal-Sidali%20DJEGHBAL-181717?logo=github&logoColor=white" />
