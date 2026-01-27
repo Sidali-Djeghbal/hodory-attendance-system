@@ -140,7 +140,7 @@ npm run dev
 
 ## Contributors
 
-<p>
+<p align="center">
   <a href="https://github.com/3boudi">
     <img alt="3boudi" src="https://img.shields.io/badge/@3boudi-HALITIM%20amin-181717?logo=github&logoColor=white" />
   </a>
