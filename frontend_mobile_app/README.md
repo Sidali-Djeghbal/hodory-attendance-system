@@ -1,55 +1,53 @@
-# Student Attendance Frontend
+# Hodory Student App (Mobile)
 
-This frontend corresponds to the **Student Attendance System**, a multi-role platform designed for managing and tracking student attendance with dedicated interfaces for Administrators, Teachers, and Students.  
-It is implemented following a structured software-engineering workflow, ensuring that every screen, interaction, and feature aligns with the system’s documented requirements and behaviors.
-
-The complete project documentation report — including functional and non-functional requirements, role definitions, detailed textual use-case specifications, system diagrams..ect — is available here:  
-**https://sidali-djeghbal.github.io/software-engineering/**
+Student mobile app for the Hodory Attendance System, built with Expo + React Native.
 
 <p align="center">
-  <img src="./assets/icons/adminApp.svg" width="45%" />
-  <img src="./assets/icons/studentApp.svg" width="45%" /> 
+  <img alt="Expo" src="https://img.shields.io/badge/Expo-SDK%2054-000020?logo=expo&logoColor=white" />
+  <img alt="React Native" src="https://img.shields.io/badge/React%20Native-0.81-20232A?logo=react&logoColor=61DAFB" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5%2B-3178C6?logo=typescript&logoColor=white" />
+  <img alt="Zustand" src="https://img.shields.io/badge/Zustand-state-433e38" />
+  <img alt="TanStack Query" src="https://img.shields.io/badge/TanStack%20Query-data%20fetching-FF4154?logo=reactquery&logoColor=white" />
 </p>
 
+## Screenshots
 
-## Figma Design
-[View Figma Design](https://www.figma.com/design/9tbInW4olc881fA9xrHBhL/student-attn?node-id=141-229&p=f&t=an5RcrJqGB74iNFv-0)
+<p align="center">
+  <img src="../public/mobile-login.png" alt="Student login" width="24%" />
+  <img src="../public/mobile-home.png" alt="Student home" width="24%" />
+  <img src="../public/mobile-home-1.png" alt="Student home 2" width="24%" />
+  <img src="../public/mobile-home-2.png" alt="Student home 3" width="24%" />
+</p>
 
+<p align="center">
+  <img src="../public/justification1.png" alt="Justification flow 1" width="24%" />
+  <img src="../public/justification2.png" alt="Justification flow 2" width="24%" />
+</p>
 
-## Project Structure
+## Setup
 
-This project is built with [Expo](https://expo.dev).
+Prerequisites:
+- Node.js 18+ (recommended)
+- Bun (optional) or npm
 
-- **app/**: Contains the main application screens and layout files. This directory follows file-based routing.
-  - `_layout.tsx`: Defines the global layout and navigation structure.
-  - `index.tsx`: The entry point/home screen of the application.
-- **assets/**: Stores static assets such as images and fonts.
-- **components/**: Reusable UI components used throughout the application.
-- **styles/**: Contains global styling and theme definitions.
-- **utils/**: Utility functions and helpers.
-  - `assets.ts`: Centralizes image imports.
-    - **Benefit**: Simplifies imports by avoiding long relative paths (e.g., `../../assets/img/image.png`). Instead, you can reference assets cleanly (e.g., `import { student } from '@/utils/assets'`). It also allows for easier management and updating of assets from a single location.
+Install dependencies:
+```bash
+cd frontend_mobile_app
+bun install
+```
 
-## Get started
+Run the app:
+```bash
+bun start
+```
 
-1. Install dependencies
+## API Configuration
 
-   ```bash
-   bun install
-   ```
+Set backend base URL with:
+- `EXPO_PUBLIC_API_URL` (example: `http://192.168.1.10:8000/api`)
 
-2. Start the app
+## Links
 
-   ```bash
-   bun start
-   ```
-
-
-## Useful Development Links
-
-- [Expo Router Documentation](https://docs.expo.dev/router/introduction/)
-- [React Native Documentation](https://reactnative.dev/)
-- [Expo Vector Icons](https://icons.expo.fyi/)
-- [Expo Linear Gradient](https://docs.expo.dev/versions/latest/sdk/linear-gradient/)
-- [Expo Image](https://docs.expo.dev/versions/latest/sdk/image/)
-- [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/)
+- Expo Router docs: https://docs.expo.dev/router/introduction/
+- Figma design: https://www.figma.com/design/9tbInW4olc881fA9xrHBhL/student-attn?node-id=141-229
+- Project documentation: https://sidali-djeghbal.github.io/software-engineering/
