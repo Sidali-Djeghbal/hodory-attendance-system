@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/banner.png" alt="Hodory banner" />
+</p>
+
 # Hodory Attendance System
 
 Hodory is an attendance management system for educational institutions, with:
@@ -8,15 +12,25 @@ Hodory is an attendance management system for educational institutions, with:
 
 > Status: under development.
 
+## Screenshots
+
+### Admin
+![Hodory Admin screenshot](public/admin.png)
+
+### Teacher
+![Hodory Teacher screenshot](public/teacher.png)
+
 ## Repo Structure
 
 - `backend/` — FastAPI API + DB models (SQLModel/SQLAlchemy)
 - `frontend_mobile_app/` — Student mobile app (Expo Router)
-- `frontend_desktop_apps/`
-  - `Hodory-admin/` — Admin dashboard (Next.js)
-  - `Hodory-teacher/` — Teacher dashboard (Next.js)
-  - `Hodory-admin-electron/` — Admin desktop wrapper (Electron)
-  - `Hodory-teacher-electron/` — Teacher desktop wrapper (Electron)
+- Web dashboards (Next.js):
+  - `Hodory-admin/` — Admin dashboard
+  - `Hodory-teacher/` — Teacher dashboard
+- Desktop (Electron):
+  - `Hodory-teacher-electron/` — Teacher desktop wrapper
+  - `frontend_desktop_apps/Hodory-admin-electron/` — Admin desktop wrapper
+- `frontend_desktop_apps/` — monorepo-style layout containing copies of the dashboard projects (WIP)
 
 ## Backend (FastAPI)
 
@@ -60,14 +74,14 @@ Optional API override (useful on real devices):
 
 ### Admin
 ```bash
-cd frontend_desktop_apps/Hodory-admin
+cd Hodory-admin
 bun install
 bun run dev -- -p 3000
 ```
 
 ### Teacher
 ```bash
-cd frontend_desktop_apps/Hodory-teacher
+cd Hodory-teacher
 bun install
 bun run dev -- -p 3001
 ```
@@ -78,17 +92,16 @@ Then open:
 
 ## Desktop Apps (Electron)
 
-Each Electron project is a wrapper around the corresponding dashboard.
+### Teacher (Electron)
+```bash
+cd Hodory-teacher-electron
+npm install
+npm run dev
+```
 
+### Admin (Electron)
 ```bash
 cd frontend_desktop_apps/Hodory-admin-electron
 npm install
 npm run dev
 ```
-
-```bash
-cd frontend_desktop_apps/Hodory-teacher-electron
-npm install
-npm run dev
-```
-
