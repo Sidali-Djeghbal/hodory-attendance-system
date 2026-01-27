@@ -46,7 +46,7 @@ import { Icons } from '../icons';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { toAvatarUser } from '@/features/auth/avatar-user';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
+import { usePendingJustificationsCount } from '@/features/justifications/use-pending-justifications-count';
 
 export default function AppSidebar() {
   const pathname = usePathname();
@@ -55,8 +55,7 @@ export default function AppSidebar() {
   const { isActive } = useSessionState();
   const { user, logout } = useAuth();
   const avatarUser = toAvatarUser(user);
-  const { metrics } = useOverviewData();
-  const pendingJustificationsCount = metrics?.pendingJustifications ?? 0;
+  const pendingJustificationsCount = usePendingJustificationsCount();
   const filteredItems = useFilteredNavItems(
     navItems.map((item) => {
       let next = item;

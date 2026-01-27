@@ -1,11 +1,2 @@
-node_modules/
-.next/
-out/
-dist/
-build/
-.turbo/
-coverage/
-.env
-.env.*
-!.env.example
-!.env.local.example
+node_modules
+.next

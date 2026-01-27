@@ -1,6 +1,8 @@
 import type { User } from "@/types/auth";
 import { create } from "zustand";
 
+export const API_URL = "http://127.0.0.1:8000/api" as const;
+
 type Auth = {
 	user: User | null;
 	login: (user: User) => void;
@@ -12,3 +14,4 @@ export const useAuth = create<Auth>((set) => ({
 	login: (user) => set({ user: user }),
 	logout: () => set({ user: null }),
 }));
+

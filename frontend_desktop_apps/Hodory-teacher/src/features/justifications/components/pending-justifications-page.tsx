@@ -46,41 +46,27 @@ export default function PendingJustificationsPage() {
   const [data, setData] = React.useState<TeacherJustificationsResponse | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const load = React.useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!token) return;
-      const silent = options?.silent ?? false;
-      if (!silent) setIsLoading(true);
-
-      const filter =
-        statusFilter === 'all'
-          ? undefined
-          : (statusFilter as 'pending' | 'approved' | 'rejected');
-
-      try {
-        const result = await getTeacherJustifications(token, filter);
-        setData(result);
-      } catch (error) {
-        if (!silent) {
-          toast.error(error instanceof Error ? error.message : 'Failed to load justifications');
-        }
-      } finally {
-        if (!silent) setIsLoading(false);
-      }
-    },
-    [token, statusFilter]
-  );
-
-  React.useEffect(() => {
-    load();
-  }, [load]);
-
   React.useEffect(() => {
     if (!token) return;
-    if (statusFilter !== 'pending') return;
-    const id = window.setInterval(() => load({ silent: true }), 10_000);
-    return () => window.clearInterval(id);
-  }, [token, statusFilter, load]);
+    let mounted = true;
+    setIsLoading(true);
+    const filter =
+      statusFilter === 'all'
+        ? undefined
+        : (statusFilter as 'pending' | 'approved' | 'rejected');
+    getTeacherJustifications(token, filter)
+      .then((result) => {
+        if (!mounted) return;
+        setData(result);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to load justifications');
+      })
+      .finally(() => setIsLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, [token, statusFilter]);
 
   const rows = React.useMemo(() => {
     const list = data?.justifications ?? [];
@@ -151,17 +137,10 @@ export default function PendingJustificationsPage() {
     <div className='flex w-full flex-col gap-6 p-4'>
       <Card>
         <CardHeader>
-          <div className='flex flex-wrap items-center justify-between gap-2'>
-            <div>
-              <CardTitle>Justifications</CardTitle>
-              <CardDescription>
-                Review student submissions and manage absence status.
-              </CardDescription>
-            </div>
-            <Button variant='outline' onClick={() => load()} disabled={isLoading}>
-              Refresh
-            </Button>
-          </div>
+          <CardTitle>Justifications</CardTitle>
+          <CardDescription>
+            Review student submissions and manage absence status.
+          </CardDescription>
         </CardHeader>
       </Card>
 

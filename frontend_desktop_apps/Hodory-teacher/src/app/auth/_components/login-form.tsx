@@ -8,7 +8,6 @@ import * as React from 'react';
 import { toast } from 'sonner';
 import { apiJson } from '@/lib/api-client';
 import { useAuth } from '@/features/auth/auth-context';
-import { primeOverviewCache } from '@/features/overview/components/overview-data-context';
 
 export function LoginForm() {
   const router = useRouter();
@@ -52,14 +51,6 @@ export function LoginForm() {
           }
 
           login({ token: result.access_token, user: result.user });
-          await primeOverviewCache({
-            token: result.access_token,
-            userId: result.user.id,
-            sessionsLimit: 60,
-            timeoutMs: 1500
-          }).catch(() => {
-            // Ignore prefetch errors; dashboard will fetch normally.
-          });
           router.replace('/dashboard/overview');
         } catch (error) {
           toast.error(error instanceof Error ? error.message : 'Login failed');

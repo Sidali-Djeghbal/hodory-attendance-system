@@ -1,194 +1,250 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table/data-table';
+import { createPasswordRecord, generatePassword } from '@/lib/password';
 
-import { readCache, writeCache } from '@/lib/cache';
-import {
-  createAdminTeacher,
-  deleteAdminTeacher,
-  getAdminTeachers,
-  updateAdminTeacher,
-  type AdminTeacherRow
-} from '@/lib/admin-api';
+import { simulateWelcomeEmail, useAdminStore, type Teacher } from '@/features/admin/store/admin-store';
 
-type Row = AdminTeacherRow;
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
-type Draft = {
-  full_name: string;
+type TeacherDraft = {
+  teacherId: string;
+  fullName: string;
   email: string;
-  password: string;
-  department: string;
 };
 
-const CACHE_TEACHERS = 'hodory_admin_teachers_v1';
-const CACHE_MAX_AGE = 5 * 60_000;
-
 export default function TeachersPage() {
-  const [rows, setRows] = React.useState<Row[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const { store, setStore } = useAdminStore();
 
   const [editorOpen, setEditorOpen] = React.useState(false);
-  const [editingId, setEditingId] = React.useState<number | null>(null);
-  const [draft, setDraft] = React.useState<Draft>({
-    full_name: '',
-    email: '',
-    password: '',
-    department: 'Computer Science'
-  });
+  const [editingTeacherId, setEditingTeacherId] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState<TeacherDraft>({ teacherId: '', fullName: '', email: '' });
+  const [passwordDraft, setPasswordDraft] = React.useState('');
+  const [passwordVisible, setPasswordVisible] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  const load = React.useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await getAdminTeachers({ skip: 0, limit: 500 });
-      setRows(res.data ?? []);
-      writeCache(CACHE_TEACHERS, res.data ?? []);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load teachers');
-    } finally {
-      setIsLoading(false);
+  const assignedCountByTeacher = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const assignment of store.assignments) {
+      map.set(assignment.teacherId, (map.get(assignment.teacherId) ?? 0) + 1);
     }
-  }, []);
+    return map;
+  }, [store.assignments]);
 
-  React.useEffect(() => {
-    const cached = readCache<Row[]>(CACHE_TEACHERS, CACHE_MAX_AGE);
-    if (cached) {
-      setRows(cached);
-      setIsLoading(false);
-    }
-    void load();
-  }, [load]);
+  const hasActiveSession = React.useCallback(
+    (teacherId: string) => store.sessions.some((s) => s.status === 'active' && s.teacherId === teacherId),
+    [store.sessions]
+  );
 
   const openCreate = () => {
-    setEditingId(null);
-    setDraft({ full_name: '', email: '', password: '', department: 'Computer Science' });
+    setEditingTeacherId(null);
+    setDraft({ teacherId: '', fullName: '', email: '' });
+    setPasswordDraft('');
+    setPasswordVisible(false);
+    setErrors({});
     setEditorOpen(true);
   };
 
-  const openEdit = (row: Row) => {
-    setEditingId(row.id);
-    setDraft({
-      full_name: row.full_name ?? '',
-      email: row.email ?? '',
-      password: '',
-      department: row.department ?? 'Computer Science'
-    });
+  const openEdit = (teacher: Teacher) => {
+    setEditingTeacherId(teacher.teacherId);
+    setDraft({ teacherId: teacher.teacherId, fullName: teacher.fullName, email: teacher.email });
+    setPasswordDraft('');
+    setPasswordVisible(false);
+    setErrors({});
     setEditorOpen(true);
   };
 
-  const save = async () => {
-    if (!draft.full_name.trim()) return toast.error('Full name is required.');
-    if (!draft.email.trim()) return toast.error('Email is required.');
+  const validate = (candidate: TeacherDraft) => {
+    const nextErrors: Record<string, string> = {};
+    if (!candidate.teacherId.trim()) nextErrors.teacherId = 'Teacher ID is required.';
+    if (!candidate.fullName.trim()) nextErrors.fullName = 'Full name is required.';
+    if (!candidate.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!isValidEmail(candidate.email.trim())) nextErrors.email = 'Invalid email.';
 
-    try {
-      if (editingId) {
-        await updateAdminTeacher(editingId, {
-          full_name: draft.full_name.trim(),
-          email: draft.email.trim(),
-          department: draft.department.trim()
-        });
-        toast.success('Teacher updated.');
+    const isEditing = Boolean(editingTeacherId);
+    const idTaken = store.teachers.some(
+      (t) => t.teacherId === candidate.teacherId && (!isEditing || t.teacherId !== editingTeacherId)
+    );
+    const emailTaken = store.teachers.some(
+      (t) => t.email.toLowerCase() === candidate.email.toLowerCase() && (!isEditing || t.teacherId !== editingTeacherId)
+    );
+    if (idTaken || emailTaken) nextErrors.uniqueness = 'A teacher with this ID or email already exists.';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const saveTeacher = async () => {
+    const candidate: TeacherDraft = {
+      teacherId: draft.teacherId.trim(),
+      fullName: draft.fullName.trim(),
+      email: draft.email.trim()
+    };
+    if (!validate(candidate)) return;
+
+    const nextPasswordHash = passwordDraft.trim()
+      ? await createPasswordRecord(passwordDraft.trim())
+      : null;
+
+    const isEditing = Boolean(editingTeacherId);
+    setStore((current) => {
+      const next = { ...current, teachers: current.teachers.slice() };
+      if (isEditing) {
+        const index = next.teachers.findIndex((t) => t.teacherId === editingTeacherId);
+        if (index >= 0) {
+          next.teachers[index] = {
+            ...next.teachers[index]!,
+            ...candidate,
+            passwordHash: nextPasswordHash ?? next.teachers[index]!.passwordHash
+          };
+        }
       } else {
-        if (!draft.password.trim()) return toast.error('Password is required.');
-        await createAdminTeacher({
-          full_name: draft.full_name.trim(),
-          email: draft.email.trim(),
-          password: draft.password.trim(),
-          department: draft.department.trim()
-        });
-        toast.success('Teacher created.');
+        next.teachers.unshift({ ...candidate, status: 'active', passwordHash: nextPasswordHash ?? '' });
       }
-      setEditorOpen(false);
-      void load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Save failed');
+      return next;
+    });
+
+    if (!isEditing) {
+      const emailSent = simulateWelcomeEmail();
+      if (emailSent) toast.success('Teacher account created successfully.');
+      else toast.warning('Account created but welcome email could not be sent.');
+    } else {
+      toast.success('Teacher information updated successfully.');
     }
+    setPasswordDraft('');
+    setEditorOpen(false);
   };
 
-  const remove = async (teacherId: number) => {
-    try {
-      await deleteAdminTeacher(teacherId);
-      toast.success('Teacher deleted.');
-      setRows((prev) => prev.filter((r) => r.id !== teacherId));
-      writeCache(CACHE_TEACHERS, rows.filter((r) => r.id !== teacherId));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Delete failed');
+  const attemptDeactivate = async (teacherId: string) => {
+    if (hasActiveSession(teacherId)) {
+      toast.error('This teacher has active attendance sessions. Deactivation is not allowed for now.');
+      return;
     }
+
+    const assignedCount = assignedCountByTeacher.get(teacherId) ?? 0;
+    if (assignedCount > 0) {
+      toast.error(
+        'This teacher is currently assigned to active modules. Please reassign these modules before deletion.'
+      );
+      return;
+    }
+
+    setStore((current) => ({
+      ...current,
+      teachers: current.teachers.map((t) =>
+        t.teacherId === teacherId ? { ...t, status: 'inactive' } : t
+      )
+    }));
+    toast.success('Teacher account has been deactivated.');
   };
 
-  const columns: Array<DataTableColumn<Row>> = [
-    { key: 'id', header: 'ID', sortable: true, accessor: (r) => String(r.id), cell: (r) => <span className='font-medium'>{r.id}</span> },
-    { key: 'full_name', header: 'Full name', sortable: true, accessor: (r) => r.full_name ?? '—' },
-    { key: 'email', header: 'Email', sortable: true, accessor: (r) => r.email ?? '—' },
-    { key: 'department', header: 'Department', sortable: true, accessor: (r) => r.department ?? '—' },
-    { key: 'assigned_modules_count', header: 'Assigned modules', sortable: true, accessor: (r) => r.assigned_modules_count ?? 0 },
+  const rows = React.useMemo(() => {
+    return store.teachers.map((t) => ({
+      ...t,
+      assignedModulesCount: assignedCountByTeacher.get(t.teacherId) ?? 0
+    }));
+  }, [store.teachers, assignedCountByTeacher]);
+
+  const columns: Array<DataTableColumn<(Teacher & { assignedModulesCount: number })>> = [
+    { key: 'teacherId', header: 'Teacher ID', sortable: true, accessor: (t) => t.teacherId, cell: (t) => <span className='font-medium'>{t.teacherId}</span> },
+    { key: 'fullName', header: 'Full name', sortable: true, accessor: (t) => t.fullName },
+    { key: 'email', header: 'Email', sortable: true, accessor: (t) => t.email },
+    { key: 'assignedModulesCount', header: 'Assigned modules', sortable: true, accessor: (t) => t.assignedModulesCount },
     {
-      key: 'is_active',
+      key: 'status',
       header: 'Status',
       sortable: true,
-      accessor: (r) => (r.is_active ? 'active' : 'inactive'),
-      cell: (r) => <Badge variant={r.is_active ? 'secondary' : 'outline'}>{r.is_active ? 'active' : 'inactive'}</Badge>
+      accessor: (t) => t.status,
+      cell: (t) => <Badge variant={t.status === 'active' ? 'secondary' : 'outline'}>{t.status}</Badge>
+    },
+    {
+      key: 'password',
+      header: 'Password',
+      accessor: (t) => (t.passwordHash ? 'set' : 'unset'),
+      cell: (t) => (
+        <Badge variant={t.passwordHash ? 'secondary' : 'outline'}>
+          {t.passwordHash ? 'Set' : 'Not set'}
+        </Badge>
+      )
     },
     {
       key: 'actions',
       header: '',
-      cell: (r) => (
-        <div className='flex justify-end gap-2'>
-          <Button size='sm' variant='outline' onClick={(e) => { e.stopPropagation(); openEdit(r); }}>
-            Edit
-          </Button>
-          <ConfirmDialog
-            title='Delete teacher?'
-            description='This will delete the teacher and their user account.'
-            confirmLabel='Delete'
-            destructive
-            trigger={
-              <Button size='sm' variant='destructive' onClick={(e) => e.stopPropagation()}>
-                Delete
+      cell: (t) => {
+        const assignedCount = t.assignedModulesCount;
+        const activeSession = hasActiveSession(t.teacherId);
+        const disabled = activeSession || assignedCount > 0;
+        const description = activeSession
+          ? 'This teacher has active attendance sessions. Deactivation is not allowed for now.'
+          : assignedCount > 0
+          ? `This teacher is currently assigned to active modules (${assignedCount}). Please reassign these modules before deletion.`
+          : 'This action will set the account to inactive (soft delete).';
+
+        return (
+          <div className='flex justify-end gap-2'>
+            <Button size='sm' variant='outline' onClick={(e) => { e.stopPropagation(); openEdit(t); }}>
+              View/Edit
+            </Button>
+            <ConfirmDialog
+              title='Deactivate teacher?'
+              description={description}
+              confirmLabel='Deactivate'
+              destructive
+              disabled={disabled}
+              trigger={
+                <Button size='sm' variant='destructive' onClick={(e) => e.stopPropagation()}>
+                  Deactivate
+                </Button>
+              }
+              onConfirm={() => attemptDeactivate(t.teacherId)}
+            />
+            {assignedCount > 0 ? (
+              <Button size='sm' variant='ghost' asChild>
+                <Link href={`/dashboard/module-assignments?teacher=${encodeURIComponent(t.teacherId)}`}>
+                  Reassign
+                </Link>
               </Button>
-            }
-            onConfirm={() => remove(r.id)}
-          />
-        </div>
-      )
+            ) : null}
+          </div>
+        );
+      }
     }
   ];
 
   return (
     <PageContainer
       pageTitle='Teachers'
-      pageDescription='Manage teachers (create, update, delete).'
-      pageHeaderAction={
-        <div className='flex gap-2'>
-          <Button variant='outline' onClick={load} disabled={isLoading}>Refresh</Button>
-          <Button onClick={openCreate}>Add teacher</Button>
-        </div>
-      }
+      pageDescription='Manage teacher accounts: add, update, deactivate, and search.'
+      pageHeaderAction={<Button onClick={openCreate}>Add Teacher</Button>}
     >
       <Card>
         <CardHeader>
           <CardTitle>Teacher list</CardTitle>
-          <CardDescription>Loaded from backend.</CardDescription>
+          <CardDescription>Search by ID, name, or email. Teacher ID is not editable.</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
             rows={rows}
             columns={columns}
-            searchPlaceholder='Search by name or email…'
+            searchPlaceholder='Search by ID, name, or email…'
             searchFn={(row, q) =>
-              [row.full_name, row.email].some((value) => (value ?? '').toLowerCase().includes(q))
+              [row.teacherId, row.fullName, row.email].some((value) =>
+                value.toLowerCase().includes(q)
+              )
             }
-            emptyState={isLoading ? 'Loading…' : 'No teachers.'}
           />
         </CardContent>
       </Card>
@@ -196,40 +252,93 @@ export default function TeachersPage() {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Update teacher' : 'Add teacher'}</DialogTitle>
+            <DialogTitle>{editingTeacherId ? 'Update teacher' : 'Add teacher'}</DialogTitle>
             <DialogDescription>
-              {editingId ? 'Update teacher details.' : 'Create a teacher account.'}
+              {editingTeacherId ? 'Edit information and save changes.' : 'Create a new teacher account.'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-3'>
+          {errors.uniqueness ? (
+            <div className='rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive'>
+              {errors.uniqueness}
+            </div>
+          ) : null}
+
+	          <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
-              <Label>Full name</Label>
-              <Input value={draft.full_name} onChange={(e) => setDraft((d) => ({ ...d, full_name: e.target.value }))} />
+              <Label htmlFor='teacherId'>Teacher ID</Label>
+              <Input
+                id='teacherId'
+                value={draft.teacherId}
+                disabled={Boolean(editingTeacherId)}
+                onChange={(e) => setDraft((d) => ({ ...d, teacherId: e.target.value }))}
+              />
+              {errors.teacherId ? <p className='text-xs text-destructive'>{errors.teacherId}</p> : null}
             </div>
             <div className='grid gap-2'>
-              <Label>Email</Label>
-              <Input value={draft.email} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} />
+              <Label htmlFor='fullName'>Full name</Label>
+              <Input
+                id='fullName'
+                value={draft.fullName}
+                onChange={(e) => setDraft((d) => ({ ...d, fullName: e.target.value }))}
+              />
+              {errors.fullName ? <p className='text-xs text-destructive'>{errors.fullName}</p> : null}
             </div>
-            {!editingId ? (
-              <div className='grid gap-2'>
-                <Label>Password</Label>
-                <Input type='password' value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} />
-              </div>
-            ) : null}
-            <div className='grid gap-2'>
-              <Label>Department</Label>
-              <Input value={draft.department} onChange={(e) => setDraft((d) => ({ ...d, department: e.target.value }))} />
-            </div>
-          </div>
+	            <div className='grid gap-2 md:col-span-2'>
+	              <Label htmlFor='email'>Email</Label>
+	              <Input
+	                id='email'
+	                type='email'
+	                value={draft.email}
+	                onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+	              />
+	              {errors.email ? <p className='text-xs text-destructive'>{errors.email}</p> : null}
+	            </div>
+	            <div className='grid gap-2 md:col-span-2'>
+	              <div className='flex items-center justify-between gap-2'>
+	                <Label htmlFor='teacherPassword'>Password</Label>
+	                <Button
+	                  type='button'
+	                  size='sm'
+	                  variant='outline'
+	                  onClick={() => {
+	                    setPasswordDraft(generatePassword());
+	                    setPasswordVisible(true);
+	                  }}
+	                >
+	                  Generate
+	                </Button>
+	              </div>
+	              <Input
+	                id='teacherPassword'
+	                value={passwordDraft}
+	                type={passwordVisible ? 'text' : 'password'}
+	                placeholder={editingTeacherId ? 'Leave blank to keep current password' : 'Set initial password'}
+	                onChange={(e) => setPasswordDraft(e.target.value)}
+	              />
+	              <div className='flex items-center justify-between text-xs text-muted-foreground'>
+	                <span>{passwordDraft.trim() ? 'Will update on save.' : 'No change.'}</span>
+	                <button
+	                  type='button'
+	                  className='underline underline-offset-2'
+	                  onClick={() => setPasswordVisible((v) => !v)}
+	                >
+	                  {passwordVisible ? 'Hide' : 'Show'}
+	                </button>
+	              </div>
+	            </div>
+	          </div>
 
           <DialogFooter>
-            <Button variant='outline' onClick={() => setEditorOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editingId ? 'Save' : 'Create'}</Button>
+            <Button variant='outline' onClick={() => setEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveTeacher()}>
+              {editingTeacherId ? 'Save Changes' : 'Create Account'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </PageContainer>
   );
 }
-

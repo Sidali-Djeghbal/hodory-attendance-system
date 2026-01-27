@@ -117,13 +117,6 @@ export type TeacherJustificationsResponse = {
   }>;
 };
 
-export type TeacherJustificationsCountResponse = {
-  success: true;
-  teacher_id: number;
-  status_filter?: string | null;
-  total_justifications: number;
-};
-
 export type TeacherSession = {
   session_id: number;
   session_code: string;
@@ -155,39 +148,8 @@ export type TeacherSessionsResponse = {
   sessions: TeacherSession[];
 };
 
-export type TeacherOverviewResponse = {
-  success: true;
-  teacher_id: number;
-  modules: TeacherModuleSummary[];
-  sessions: TeacherSession[];
-  total_sessions: number;
-  today_sessions: number;
-  next_session: {
-    session_id: number;
-    session_code: string;
-    date_time: string;
-    room?: string | null;
-    is_active: boolean;
-    module?: { code: string; name: string } | null;
-  } | null;
-  excluded_records: number;
-  pending_justifications: number;
-};
-
 export async function getTeacherProfile(token: string) {
   return apiJson<TeacherProfile>('/teacher/profile', { token });
-}
-
-export async function getTeacherOverview(
-  token: string,
-  options?: { sessionsLimit?: number; timeoutMs?: number }
-) {
-  const limit = options?.sessionsLimit ?? 50;
-  const qs = `?sessions_limit=${encodeURIComponent(String(limit))}`;
-  return apiJson<TeacherOverviewResponse>(`/teacher/overview${qs}`, {
-    token,
-    timeoutMs: options?.timeoutMs
-  });
 }
 
 export async function getMyModules(token: string) {
@@ -195,8 +157,7 @@ export async function getMyModules(token: string) {
 }
 
 export async function getTeacherSessions(token: string) {
-  // Optimized backend path: avoid expanding attendance records for every session.
-  return apiJson<TeacherSessionsResponse>('/teacher/sessions?include_records=false', { token });
+  return apiJson<TeacherSessionsResponse>('/teacher/sessions', { token });
 }
 
 export async function createSession(
@@ -237,19 +198,6 @@ export async function getTeacherJustifications(
   return apiJson<TeacherJustificationsResponse>(`/teacher/justifications${qs}`, {
     token
   });
-}
-
-export async function getTeacherJustificationsCount(
-  token: string,
-  statusFilter?: 'pending' | 'approved' | 'rejected'
-) {
-  const qs = statusFilter
-    ? `?status_filter=${encodeURIComponent(statusFilter)}`
-    : '';
-  return apiJson<TeacherJustificationsCountResponse>(
-    `/teacher/justifications/count${qs}`,
-    { token }
-  );
 }
 
 export async function validateJustification(

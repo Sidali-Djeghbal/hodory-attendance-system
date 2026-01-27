@@ -13,7 +13,6 @@ import {
   ChartTooltipContent
 } from '@/components/ui/chart';
 import { useAttendanceSelection } from '@/features/overview/components/attendance-context';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
 import {
   Line,
   LineChart,
@@ -23,6 +22,8 @@ import {
   YAxis
 } from 'recharts';
 import * as React from 'react';
+import { useAuth } from '@/features/auth/auth-context';
+import { getTeacherSessions, type TeacherSession } from '@/lib/teacher-api';
 
 function formatShort(value: string) {
   const date = new Date(value);
@@ -32,7 +33,24 @@ function formatShort(value: string) {
 
 export default function AreaStats() {
   const { selectedModule } = useAttendanceSelection();
-  const { sessions, isLoading } = useOverviewData();
+  const { token } = useAuth();
+  const [sessions, setSessions] = React.useState<TeacherSession[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
+    getTeacherSessions(token)
+      .then((result) => {
+        if (cancelled) return;
+        setSessions(result.sessions ?? []);
+      })
+      .finally(() => setIsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const data = React.useMemo(() => {
     const filtered = sessions

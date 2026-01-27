@@ -27,10 +27,12 @@ import {
   TableRow
 	} from '@/components/ui/table';
 	import { QrCodePreview } from './qr-code-preview';
-import { useSessionState } from '@/features/session/session-context';
-import { useRouter } from 'next/navigation';
+	import { useSessionState } from '@/features/session/session-context';
+	import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/auth-context';
 import { getSessionAttendance, type SessionAttendanceResponse } from '@/lib/teacher-api';
+import { encodeQrPayload, type HodoryQrPayloadV1 } from '@/lib/qr-payload';
+import { resolveAdvertisedApiBaseUrl } from '@/lib/electron-hotspot';
 
 function formatClock(value?: string | null) {
   if (!value) return '—';
@@ -53,7 +55,18 @@ export default function ActiveSessionPage() {
     code,
     remainingSeconds,
     stopSession,
-    sessionId
+    sessionId,
+    startedAt,
+    durationMinutes,
+    wifiSsid,
+    wifiPassword,
+    wifiSecurity,
+    hotspotPhase,
+    hotspotStatus,
+    hotspotError,
+    startHotspot,
+    stopHotspot,
+    refreshHotspot
   } = useSessionState();
   const router = useRouter();
   const [attendance, setAttendance] = React.useState<SessionAttendanceResponse | null>(null);
@@ -82,12 +95,38 @@ export default function ActiveSessionPage() {
     };
 
     load();
-    const interval = setInterval(load, 2000);
+    const interval = setInterval(load, 5000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
   }, [token, sessionId, isActive]);
+
+  React.useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        await refreshHotspot();
+      } catch {
+        // Ignore.
+      }
+    };
+    tick().catch(() => null);
+    const interval = setInterval(() => {
+      if (cancelled) return;
+      tick().catch(() => null);
+    }, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isActive, refreshHotspot]);
+
+  const hotspotIpv4 = React.useMemo(() => {
+    if (!hotspotStatus || 'error' in hotspotStatus) return null;
+    return hotspotStatus.ipv4Address ?? null;
+  }, [hotspotStatus]);
 
   const presentStudents = React.useMemo(() => {
     const rows = attendance?.students ?? [];
@@ -110,18 +149,47 @@ export default function ActiveSessionPage() {
 
   const liveEvents = React.useMemo(() => {
     if (loadError) return [{ message: `Last refresh failed: ${loadError}` }];
-    return [{ message: 'Live updates refresh every 2 seconds.' }];
+    return [{ message: 'Live updates refresh every 5 seconds.' }];
   }, [loadError]);
 
   const qrValue = React.useMemo(() => {
-    // Student mobile app accepts either raw session code or a structured payload.
-    // Prefer structured payload for future-proofing.
-    return JSON.stringify({
+    const payload: HodoryQrPayloadV1 = {
       v: 1,
       type: 'hodory.attendance.session',
-      session: { code }
-    });
-  }, [code]);
+      session: {
+        id: sessionId ?? -1,
+        code,
+        moduleCode: module,
+        room,
+        startedAt,
+        durationMinutes
+      },
+      network: wifiSsid
+        ? {
+            ssid: wifiSsid,
+            password: wifiSecurity === 'nopass' ? undefined : wifiPassword,
+            security: wifiSecurity
+          }
+        : undefined,
+      apiBaseUrl: resolveAdvertisedApiBaseUrl({
+        configured: process.env.NEXT_PUBLIC_API_URL,
+        hotspotIpv4
+      })
+    };
+
+    return encodeQrPayload(payload);
+  }, [
+    sessionId,
+    code,
+    module,
+    room,
+    startedAt,
+    durationMinutes,
+    wifiSsid,
+    wifiPassword,
+    wifiSecurity,
+    hotspotIpv4
+  ]);
 
   const formatCountdown = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -184,6 +252,22 @@ export default function ActiveSessionPage() {
                 {code}
               </div>
               <div className='text-sm text-muted-foreground'>Room {room}</div>
+              {wifiSsid ? (
+                <div className='text-xs text-muted-foreground'>
+                  WiFi: <span className='text-foreground font-medium'>{wifiSsid}</span>
+                  {wifiSecurity !== 'nopass' ? (
+                    <>
+                      {' '}
+                      · Password:{' '}
+                      <span className='text-foreground font-medium'>
+                        {wifiPassword || '—'}
+                      </span>
+                    </>
+                  ) : (
+                    <> · Open network</>
+                  )}
+                </div>
+              ) : null}
               <div className='text-2xl font-semibold'>
                 {formatCountdown(remainingSeconds)} remaining
               </div>
@@ -212,6 +296,69 @@ export default function ActiveSessionPage() {
               >
                 Copy code
               </Button>
+            </div>
+            <div className='rounded-lg border border-border/60 bg-muted/30 p-3 text-sm'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='text-muted-foreground'>Hotspot</span>
+                <Badge
+                  variant={
+                    hotspotPhase === 'active'
+                      ? 'default'
+                      : hotspotPhase === 'error'
+                        ? 'destructive'
+                        : 'secondary'
+                  }
+                >
+                  {hotspotPhase === 'starting'
+                    ? 'Starting…'
+                    : hotspotPhase === 'active'
+                      ? 'Running'
+                      : hotspotPhase === 'inactive'
+                        ? 'Stopped'
+                        : hotspotPhase === 'error'
+                          ? 'Error'
+                          : 'Idle'}
+                </Badge>
+              </div>
+              {hotspotError ? (
+                <p className='mt-2 text-xs text-muted-foreground'>
+                  {hotspotError}
+                </p>
+              ) : hotspotIpv4 ? (
+                <p className='mt-2 text-xs text-muted-foreground'>
+                  Students should reach the backend at{' '}
+                  <span className='font-medium text-foreground'>
+                    http://{hotspotIpv4}:8000
+                  </span>{' '}
+                  (backend must listen on 0.0.0.0).
+                </p>
+              ) : null}
+              <div className='mt-3 flex flex-wrap gap-2'>
+                <Button
+                  size='sm'
+                  variant='secondary'
+                  onClick={() => {
+                    startHotspot({
+                      ssid: wifiSsid,
+                      security: wifiSecurity,
+                      password: wifiSecurity === 'nopass' ? undefined : wifiPassword
+                    }).catch(() => null);
+                  }}
+                  disabled={hotspotPhase === 'starting'}
+                >
+                  Start AP
+                </Button>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={() => {
+                    stopHotspot().catch(() => null);
+                  }}
+                  disabled={hotspotPhase === 'starting'}
+                >
+                  Stop AP
+                </Button>
+              </div>
             </div>
             {!isActive ? (
               <div className='rounded-lg border border-border/60 bg-muted/30 p-3 text-center text-sm text-muted-foreground'>
@@ -389,6 +536,22 @@ export default function ActiveSessionPage() {
                 <p className='text-3xl font-semibold tracking-widest'>
                   {code}
                 </p>
+                {wifiSsid ? (
+                  <p className='mt-2 text-xs text-muted-foreground'>
+                    WiFi: <span className='text-foreground font-medium'>{wifiSsid}</span>
+                    {wifiSecurity !== 'nopass' ? (
+                      <>
+                        {' '}
+                        · Password:{' '}
+                        <span className='text-foreground font-medium'>
+                          {wifiPassword || '—'}
+                        </span>
+                      </>
+                    ) : (
+                      <> · Open network</>
+                    )}
+                  </p>
+                ) : null}
               </div>
               <div className='rounded-xl border border-border/60 bg-muted/30 p-4'>
                 <p className='text-sm font-medium'>{module}</p>

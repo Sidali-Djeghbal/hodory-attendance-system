@@ -39,9 +39,10 @@ import {
 import { toast } from 'sonner';
 
 import { useAuth } from '@/features/auth/auth-context';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
 import {
+  getMyModules,
   getSessionAttendance,
+  getTeacherSessions,
   type MyModulesResponse,
   type SessionAttendanceResponse,
   type TeacherSession
@@ -76,7 +77,6 @@ function average(values: number[]) {
 
 export default function AttendanceRecordsPage() {
   const { token } = useAuth();
-  const overview = useOverviewData();
   const [moduleSearch, setModuleSearch] = React.useState('');
   const [modulesResponse, setModulesResponse] =
     React.useState<MyModulesResponse | null>(null);
@@ -92,20 +92,29 @@ export default function AttendanceRecordsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    // Prefer the already-fetched dashboard cache for fast navigation.
-    if (overview.isLoading) return;
-    const modules = overview.modules ?? [];
-    setModulesResponse({
-      success: true,
-      teacher_id: 0,
-      total_modules: modules.length,
-      modules
-    });
-    setSessions(overview.sessions ?? []);
-    const firstCode = modules?.[0]?.module_code ?? null;
-    setSelectedModuleCode((prev) => prev ?? firstCode);
-    setIsLoading(false);
-  }, [overview.isLoading, overview.modules, overview.sessions]);
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
+
+    Promise.all([getMyModules(token), getTeacherSessions(token)])
+      .then(([m, s]) => {
+        if (cancelled) return;
+        setModulesResponse(m);
+        setSessions(s.sessions ?? []);
+        const firstCode = m.modules?.[0]?.module_code ?? null;
+        setSelectedModuleCode((prev) => prev ?? firstCode);
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to load data.'
+        );
+      })
+      .finally(() => setIsLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const moduleRows = React.useMemo(() => {
     const modules = modulesResponse?.modules ?? [];
@@ -515,3 +524,4 @@ export default function AttendanceRecordsPage() {
     </div>
   );
 }
+

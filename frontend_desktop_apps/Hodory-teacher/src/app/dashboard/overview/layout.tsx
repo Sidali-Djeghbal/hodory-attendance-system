@@ -5,13 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AttendanceProvider } from '@/features/overview/components/attendance-context';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
 import { useSessionState } from '@/features/session/session-context';
+import { useAuth } from '@/features/auth/auth-context';
+import { usePendingJustificationsCount } from '@/features/justifications/use-pending-justifications-count';
+import { getMyModules, getTeacherSessions, type TeacherSession } from '@/lib/teacher-api';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import * as React from 'react';
 
-function OverViewLayoutInner({
+export default function OverViewLayout({
   bar_stats,
   area_stats,
 }: {
@@ -19,29 +21,90 @@ function OverViewLayoutInner({
   area_stats: ReactNode;
 }) {
   const { isActive, code, module, room, remainingSeconds } = useSessionState();
+  const { token } = useAuth();
+  const pendingJustifications = usePendingJustificationsCount();
   const remainingMinutes = Math.max(Math.ceil(remainingSeconds / 60), 0);
-  const { modules, metrics, refresh, isRefreshing } = useOverviewData();
+  const [todaySessionsCount, setTodaySessionsCount] = React.useState<number | null>(null);
+  const [nextSessionLabel, setNextSessionLabel] = React.useState<string>('—');
   const [defaultModule, setDefaultModule] = React.useState('COMPIL');
+  const [excludedRecordsCount, setExcludedRecordsCount] = React.useState<number | null>(null);
 
   React.useEffect(() => {
-    const firstModuleCode = modules?.[0]?.module_code;
-    if (firstModuleCode) setDefaultModule(firstModuleCode);
-  }, [modules]);
+    if (!token) return;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [modules, sessionsResponse] = await Promise.all([
+          getMyModules(token),
+          getTeacherSessions(token)
+        ]);
+        if (cancelled) return;
+
+        const firstModuleCode = modules.modules?.[0]?.module_code;
+        if (firstModuleCode) setDefaultModule(firstModuleCode);
+
+        const now = new Date();
+        const sameDay = (a: Date, b: Date) =>
+          a.getFullYear() === b.getFullYear() &&
+          a.getMonth() === b.getMonth() &&
+          a.getDate() === b.getDate();
+
+        const sessions: TeacherSession[] = sessionsResponse.sessions ?? [];
+        const todays = sessions.filter((s) => sameDay(new Date(s.date_time), now));
+        setTodaySessionsCount(todays.length);
+
+        const upcoming = sessions
+          .filter((s) => new Date(s.date_time).getTime() > now.getTime())
+          .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime())[0];
+
+        if (upcoming) {
+          const time = new Intl.DateTimeFormat('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }).format(new Date(upcoming.date_time));
+          setNextSessionLabel(`${upcoming.module.code} - ${time}`);
+        } else {
+          setNextSessionLabel('No upcoming sessions');
+        }
+
+        // This is a count of excluded attendance records across sessions (not unique students).
+        const excluded = sessions.reduce((sum, s) => sum + (s.statistics?.excluded ?? 0), 0);
+        setExcludedRecordsCount(excluded);
+      } catch {
+        if (cancelled) return;
+        setTodaySessionsCount(null);
+        setNextSessionLabel('—');
+        setExcludedRecordsCount(null);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const summaryCards = [
     {
-      title: 'Sessions',
-      value: String(metrics.totalSessions),
-      meta: `Today: ${metrics.todaySessions} • Next: ${metrics.nextSessionLabel}`
+      title: "Today's sessions",
+      value: todaySessionsCount === null ? '—' : String(todaySessionsCount),
+      meta: `Next: ${nextSessionLabel}`
+    },
+    {
+      title: 'Active session',
+      value: isActive ? `${module} - Room ${room}` : 'No active session',
+      meta: isActive ? `${remainingMinutes} min remaining` : 'Stopped'
     },
     {
       title: 'Pending justifications',
-      value: String(metrics.pendingJustifications),
+      value:
+        pendingJustifications === null ? '—' : String(pendingJustifications),
       meta: 'Requests awaiting your review'
     },
     {
       title: 'Excluded (records)',
-      value: String(metrics.excludedRecords),
+      value: excludedRecordsCount === null ? '—' : String(excludedRecordsCount),
       meta: 'Across teacher sessions'
     }
   ];
@@ -59,9 +122,6 @@ function OverViewLayoutInner({
             <Button asChild variant='outline'>
               <Link href='/dashboard/attendance'>View records</Link>
             </Button>
-            <Button variant='outline' onClick={refresh} disabled={isRefreshing}>
-              Refresh
-            </Button>
           </div>
         }
       >
@@ -73,10 +133,11 @@ function OverViewLayoutInner({
               <h2 className='text-2xl font-semibold text-slate-900 dark:text-slate-900'>
                 Teaching control center
               </h2>
-              <p className='text-muted-foreground mt-2 text-sm'>
-                Monitor attendance, launch sessions, and review justifications in one place.
-              </p>
-            </div>
+	              <p className='text-muted-foreground mt-2 text-sm'>
+	                Monitor attendance, launch sessions, and review justifications
+	                in one place.
+	              </p>
+	            </div>
             <div className='flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4'>
               <div className='flex items-center justify-between'>
                 <span className='text-sm font-medium'>Active session</span>
@@ -116,27 +177,18 @@ function OverViewLayoutInner({
           {summaryCards.map((card) => (
             <Card key={card.title}>
               <CardHeader>
-                <CardTitle className='text-sm text-muted-foreground'>{card.title}</CardTitle>
+                <CardTitle className='text-sm text-muted-foreground'>
+                  {card.title}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className='text-xl font-semibold'>{card.value}</div>
-                <p className='text-muted-foreground mt-1 text-xs'>{card.meta}</p>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {card.meta}
+                </p>
               </CardContent>
             </Card>
           ))}
-          <Card>
-            <CardHeader>
-              <CardTitle className='text-sm text-muted-foreground'>Active session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='text-xl font-semibold'>
-                {isActive ? `${module} - Room ${room}` : 'No active session'}
-              </div>
-              <p className='text-muted-foreground mt-1 text-xs'>
-                {isActive ? `${remainingMinutes} min remaining` : 'Stopped'}
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         <div className='mt-6 grid gap-4 lg:grid-cols-2'>
@@ -146,14 +198,4 @@ function OverViewLayoutInner({
       </PageContainer>
     </AttendanceProvider>
   );
-}
-
-export default function OverViewLayout({
-  bar_stats,
-  area_stats,
-}: {
-  bar_stats: ReactNode;
-  area_stats: ReactNode;
-}) {
-  return <OverViewLayoutInner bar_stats={bar_stats} area_stats={area_stats} />;
 }

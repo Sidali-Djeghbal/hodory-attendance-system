@@ -22,7 +22,6 @@ import {
   type TeacherJustificationsResponse
 } from '@/lib/teacher-api';
 import { toast } from 'sonner';
-import { API_BASE_URL } from '@/lib/api-client';
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—';
@@ -77,25 +76,6 @@ export default function JustificationReviewPage() {
   const statusLabel = entry?.status ?? '—';
   const notes = entry?.comment ?? '—';
   const fileUrl = entry?.file_url ?? null;
-  const attachmentUrl = React.useMemo(() => {
-    if (!fileUrl) return null;
-    // Backend stores relative paths like "uploads/justifications/<uuid>.pdf".
-    const normalized = String(fileUrl).replace(/\\/g, '/');
-    const filename = normalized.split('/').pop();
-    if (!filename) return null;
-    // In-browser: goes through Next proxy "/api/backend".
-    // In server contexts: API_BASE_URL points to direct backend (but this component is client-only).
-    return `${API_BASE_URL}/files/justifications/${encodeURIComponent(filename)}`;
-  }, [fileUrl]);
-  const attachmentKind = React.useMemo(() => {
-    if (!attachmentUrl) return null;
-    const lower = attachmentUrl.toLowerCase();
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')) {
-      return 'image';
-    }
-    if (lower.endsWith('.pdf')) return 'pdf';
-    return 'other';
-  }, [attachmentUrl]);
 
   const submitDecision = async (decision: 'approve' | 'reject') => {
     if (!token) return;
@@ -207,7 +187,7 @@ export default function JustificationReviewPage() {
                 <IconAlertTriangle />
                 <AlertTitle>Attachment</AlertTitle>
                 <AlertDescription>
-                  <span className='text-sm'>File attached.</span>
+                  File URL present. Preview is not implemented in this UI yet.
                 </AlertDescription>
               </Alert>
             ) : (
@@ -220,27 +200,8 @@ export default function JustificationReviewPage() {
               </Alert>
             )}
           </div>
-          <div className='flex items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/30 p-3'>
-            {!attachmentUrl ? (
-              <div className='text-center text-sm text-muted-foreground'>No attachment.</div>
-            ) : attachmentKind === 'image' ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={attachmentUrl}
-                alt='Justification attachment'
-                className='max-h-[360px] w-full rounded-lg object-contain'
-              />
-            ) : attachmentKind === 'pdf' ? (
-              <iframe
-                src={attachmentUrl}
-                className='h-[360px] w-full rounded-lg bg-white'
-                title='Justification attachment preview'
-              />
-            ) : (
-              <div className='flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground'>
-                <div>Preview not available for this file type.</div>
-              </div>
-            )}
+          <div className='flex items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/30 p-6 text-center text-sm text-muted-foreground'>
+            {fileUrl ? 'Attachment preview not implemented.' : 'No attachment.'}
           </div>
         </CardContent>
       </Card>

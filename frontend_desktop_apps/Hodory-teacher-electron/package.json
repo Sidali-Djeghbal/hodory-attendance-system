@@ -11,7 +11,7 @@
   "main": "main.cjs",
   "scripts": {
     "dev:next": "npm --prefix ../Hodory-teacher run dev -- -p 3001",
-    "dev:electron": "node scripts/ensure-electron.cjs && wait-on http://127.0.0.1:3001 http-get://127.0.0.1:3001/api/backend/health && env -u ELECTRON_RUN_AS_NODE electron .",
+    "dev:electron": "node scripts/ensure-electron.cjs && wait-on http://127.0.0.1:3001 && env -u ELECTRON_RUN_AS_NODE electron .",
     "dev": "concurrently -k -n next,electron -c blue,green \"npm run dev:next\" \"npm run dev:electron\"",
     "build:next": "npm --prefix ../Hodory-teacher run build",
     "prepare:next": "node scripts/prepare-next.cjs",

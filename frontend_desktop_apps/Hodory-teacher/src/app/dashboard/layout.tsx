@@ -4,7 +4,6 @@ import Header from '@/components/layout/header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { SessionProvider } from '@/features/session/session-context';
 import { RequireAuth } from '@/features/auth/require-auth';
-import { DashboardOverviewProvider } from '@/features/overview/components/dashboard-overview-provider';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -19,19 +18,17 @@ export default async function DashboardLayout({
 }) {
   return (
     <RequireAuth>
-      <DashboardOverviewProvider>
-        <SessionProvider>
-          <KBar>
-            <SidebarProvider defaultOpen>
-              <AppSidebar />
-              <SidebarInset>
-                <Header />
-                <div className='min-h-0 flex-1 overflow-y-auto'>{children}</div>
-              </SidebarInset>
-            </SidebarProvider>
-          </KBar>
-        </SessionProvider>
-      </DashboardOverviewProvider>
+      <SessionProvider>
+        <KBar>
+          <SidebarProvider defaultOpen>
+            <AppSidebar />
+            <SidebarInset>
+              <Header />
+              <div className='min-h-0 flex-1 overflow-y-auto'>{children}</div>
+            </SidebarInset>
+          </SidebarProvider>
+        </KBar>
+      </SessionProvider>
     </RequireAuth>
   );
 }

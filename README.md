@@ -24,13 +24,11 @@ Hodory is an attendance management system for educational institutions, with:
 
 - `backend/` — FastAPI API + DB models (SQLModel/SQLAlchemy)
 - `frontend_mobile_app/` — Student mobile app (Expo Router)
-- Web dashboards (Next.js):
-  - `Hodory-admin/` — Admin dashboard
-  - `Hodory-teacher/` — Teacher dashboard
-- Desktop (Electron):
-  - `Hodory-teacher-electron/` — Teacher desktop wrapper
-  - `frontend_desktop_apps/Hodory-admin-electron/` — Admin desktop wrapper
-- `frontend_desktop_apps/` — monorepo-style layout containing copies of the dashboard projects (WIP)
+- `frontend_desktop_apps/`
+  - `Hodory-admin/` — Admin dashboard (Next.js)
+  - `Hodory-teacher/` — Teacher dashboard (Next.js)
+  - `Hodory-admin-electron/` — Admin desktop wrapper (Electron)
+  - `Hodory-teacher-electron/` — Teacher desktop wrapper (Electron)
 
 ## Backend (FastAPI)
 
@@ -74,14 +72,14 @@ Optional API override (useful on real devices):
 
 ### Admin
 ```bash
-cd Hodory-admin
+cd frontend_desktop_apps/Hodory-admin
 bun install
 bun run dev -- -p 3000
 ```
 
 ### Teacher
 ```bash
-cd Hodory-teacher
+cd frontend_desktop_apps/Hodory-teacher
 bun install
 bun run dev -- -p 3001
 ```
@@ -94,7 +92,7 @@ Then open:
 
 ### Teacher (Electron)
 ```bash
-cd Hodory-teacher-electron
+cd frontend_desktop_apps/Hodory-teacher-electron
 npm install
 npm run dev
 ```

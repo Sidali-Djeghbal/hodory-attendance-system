@@ -6,11 +6,14 @@ import { Label } from '@/components/ui/label';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import * as React from 'react';
+import { API_URL, useAuth } from '@/stores/auth';
+import type { User } from '@/types/auth';
 
 export function LoginForm() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const loginState = useAuth((state) => state.login);
 
 	return (
 		<form
@@ -22,12 +25,16 @@ export function LoginForm() {
 					const form = new FormData(event.currentTarget);
 					const email = String(form.get('email') ?? '');
 					const password = String(form.get('password') ?? '');
-					const response = await fetch('/api/auth/login', {
+					const response = await fetch(API_URL + '/auth/login', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify({ email, password })
 					});
 					if (!response.ok) throw new Error('Login failed');
+
+					const { access_token, user } = await response.json();
+					document.cookie = `token=${access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict; Secure`;
+					loginState(user as User);
 
 					const next = searchParams.get('next');
 					const destination =

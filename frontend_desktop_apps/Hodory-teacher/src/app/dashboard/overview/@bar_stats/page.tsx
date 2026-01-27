@@ -13,39 +13,57 @@ import {
   ChartTooltipContent
 } from '@/components/ui/chart';
 import { useAttendanceSelection } from '@/features/overview/components/attendance-context';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
+import { useAuth } from '@/features/auth/auth-context';
+import { getMyModules, getTeacherSessions } from '@/lib/teacher-api';
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts';
 import * as React from 'react';
 
 export default function BarStats() {
   const { selectedModule, setSelectedModule } = useAttendanceSelection();
-  const { modules, sessions, isLoading } = useOverviewData();
+  const { token } = useAuth();
+  const [data, setData] = React.useState<Array<{ module: string; rate: number }>>(
+    []
+  );
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const data = React.useMemo(() => {
-    const sessionsByModule = new Map<string, number[]>();
-    for (const sess of sessions ?? []) {
-      const code = sess.module?.code;
-      if (!code) continue;
-      const arr = sessionsByModule.get(code) ?? [];
-      arr.push(sess.statistics?.attendance_rate ?? 0);
-      sessionsByModule.set(code, arr);
-    }
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
 
-    const next = (modules ?? [])
-      .map((m) => {
-        const rates = sessionsByModule.get(m.module_code) ?? [];
-        const last = rates.slice(0, 6);
-        const avg =
-          last.length > 0
-            ? Math.round((last.reduce((a, b) => a + b, 0) / last.length) * 100) /
-              100
-            : 0;
-        return { module: m.module_code, rate: avg };
+    Promise.all([getMyModules(token), getTeacherSessions(token)])
+      .then(([modules, sessions]) => {
+        if (cancelled) return;
+        const sessionsByModule = new Map<string, number[]>();
+        for (const sess of sessions.sessions ?? []) {
+          const code = sess.module?.code;
+          if (!code) continue;
+          const arr = sessionsByModule.get(code) ?? [];
+          arr.push(sess.statistics?.attendance_rate ?? 0);
+          sessionsByModule.set(code, arr);
+        }
+
+        const next = (modules.modules ?? [])
+          .map((m) => {
+            const rates = sessionsByModule.get(m.module_code) ?? [];
+            const last = rates.slice(0, 6);
+            const avg =
+              last.length > 0
+                ? Math.round(
+                    (last.reduce((a, b) => a + b, 0) / last.length) * 100
+                  ) / 100
+                : 0;
+            return { module: m.module_code, rate: avg };
+          })
+          .sort((a, b) => a.module.localeCompare(b.module));
+        setData(next);
       })
-      .sort((a, b) => a.module.localeCompare(b.module));
+      .finally(() => setIsLoading(false));
 
-    return next;
-  }, [modules, sessions]);
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <Card>

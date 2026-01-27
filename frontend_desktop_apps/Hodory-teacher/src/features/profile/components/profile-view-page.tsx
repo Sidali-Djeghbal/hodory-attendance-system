@@ -13,12 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/auth-context';
 import { toAvatarUser } from '@/features/auth/avatar-user';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
-import { getTeacherProfile, type TeacherModuleSummary, type TeacherProfile } from '@/lib/teacher-api';
+import { getMyModules, getTeacherProfile, type TeacherModuleSummary, type TeacherProfile } from '@/lib/teacher-api';
 
 export default function ProfileViewPage() {
   const { token, user, logout } = useAuth();
-  const overview = useOverviewData();
   const avatarUser = toAvatarUser(user);
   const [profile, setProfile] = React.useState<TeacherProfile | null>(null);
   const [modules, setModules] = React.useState<TeacherModuleSummary[]>([]);
@@ -28,11 +26,11 @@ export default function ProfileViewPage() {
     if (!token) return;
     let mounted = true;
     setLoading(true);
-    getTeacherProfile(token)
-      .then((p) => {
+    Promise.all([getTeacherProfile(token), getMyModules(token)])
+      .then(([p, m]) => {
         if (!mounted) return;
         setProfile(p);
-        setModules(overview.modules ?? []);
+        setModules(m.modules ?? []);
       })
       .catch(() => {
         // If token is invalid, force logout.
@@ -43,7 +41,7 @@ export default function ProfileViewPage() {
     return () => {
       mounted = false;
     };
-  }, [token, logout, overview.modules]);
+  }, [token, logout]);
 
   return (
     <div className='flex w-full flex-col gap-6 p-4'>

@@ -9,6 +9,9 @@ Desktop.ini
 # Old nested git dirs (repo consolidation)
 **/.git.bak/
 
+# Local backups created during repo consolidation
+frontend_desktop_apps/_old-*/
+
 # Logs
 *.log
 .logs/

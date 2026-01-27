@@ -2,13 +2,12 @@
 
 import * as React from 'react';
 import { useAuth } from '@/features/auth/auth-context';
-import { getTeacherJustificationsCount } from '@/lib/teacher-api';
+import { getTeacherJustifications } from '@/lib/teacher-api';
 
 export function usePendingJustificationsCount(options?: { refreshMs?: number }) {
-  const refreshMs = options?.refreshMs ?? 60_000;
+  const refreshMs = options?.refreshMs ?? 30_000;
   const { token } = useAuth();
   const [count, setCount] = React.useState<number | null>(null);
-  const inFlight = React.useRef(false);
 
   React.useEffect(() => {
     if (!token) {
@@ -19,16 +18,12 @@ export function usePendingJustificationsCount(options?: { refreshMs?: number }) 
     let cancelled = false;
 
     const load = async () => {
-      if (inFlight.current) return;
-      inFlight.current = true;
       try {
-        const result = await getTeacherJustificationsCount(token, 'pending');
+        const result = await getTeacherJustifications(token, 'pending');
         if (cancelled) return;
         setCount(result.total_justifications ?? 0);
       } catch {
         // Ignore badge refresh errors (UI should still work).
-      } finally {
-        inFlight.current = false;
       }
     };
 
@@ -42,3 +37,4 @@ export function usePendingJustificationsCount(options?: { refreshMs?: number }) 
 
   return count;
 }
+

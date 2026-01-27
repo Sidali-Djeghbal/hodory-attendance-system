@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import * as React from 'react';
-import { useOverviewData } from '@/features/overview/components/overview-data-context';
+import { useAuth } from '@/features/auth/auth-context';
+import { getMyModules, getTeacherSessions, type TeacherModuleSummary, type TeacherSession } from '@/lib/teacher-api';
 
 function toDayLabel(date: Date) {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
@@ -48,7 +49,26 @@ function addDays(date: Date, days: number) {
 }
 
 export default function TimetablePage() {
-  const { modules, sessions, isLoading } = useOverviewData();
+  const { token } = useAuth();
+  const [modules, setModules] = React.useState<TeacherModuleSummary[]>([]);
+  const [sessions, setSessions] = React.useState<TeacherSession[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsLoading(true);
+    Promise.all([getMyModules(token), getTeacherSessions(token)])
+      .then(([m, s]) => {
+        if (cancelled) return;
+        setModules(m.modules ?? []);
+        setSessions(s.sessions ?? []);
+      })
+      .finally(() => setIsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const moduleIdByCode = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -65,9 +85,7 @@ export default function TimetablePage() {
 
   const weekStart = React.useMemo(() => startOfWeekMonday(referenceDate), [referenceDate]);
   const weekDays = React.useMemo(
-    // Show full week. Seed data creates sessions every 7 days, so limiting to Mon–Fri
-    // can hide sessions that fall on weekends.
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    () => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
 
