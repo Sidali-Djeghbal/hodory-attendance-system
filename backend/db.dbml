@@ -1,0 +1,147 @@
+Table users {
+id int [pk]
+full_name varchar [not null]
+email varchar [unique, not null]
+department varchar [not null]
+hashed_password varchar [not null]
+is_active boolean [default: true]
+
+role varchar [note: '"student", "teacher", "admin"']
+created_at timestamp
+updated_at timestamp
+}
+Table students {
+id int [pk]
+user_id int [unique, not null]
+level_id int [not null]
+}
+Table teacher {
+id int [pk]
+user_id int [unique, not null]
+}
+Table admins {
+id int [pk]
+user_id int [unique, not null]
+}
+Table level {
+id int [pk]
+name varchar [not null]
+year_level varchar [not null]
+created_at timestamp
+}
+Table module {
+id int [pk]
+name varchar [not null]
+code varchar [unique, not null]
+room varchar
+level_id int [not null]
+}
+Table enrollments {
+id int [pk]
+student_id int [not null]
+module_id int [not null]
+number_of_absences int [default: 0]
+is_excluded boolean [default: false]
+}
+Table schedule {
+id int [pk]
+level_id int [unique, not null]
+last_updated timestamp
+}
+Table s_day {
+id int [pk]
+day ScheduleDays [not null]
+time varchar [not null]
+schedule_id int [not null]
+module_id int [not null]
+}
+Table teacher_modules {
+id int [pk]
+teacher_id int [not null]
+module_id int [not null]
+}
+Table sessions {
+id int [pk]
+session_code varchar [not null]
+session_qrcode varchar [not null]
+date_time timestamp
+duration_minutes int [default: 60]
+is_active boolean [default: true]
+teacher_module_id int [not null]
+}
+Table attendance_records {
+id int [pk]
+status AttendanceStatus [default: 'ABSENT']
+created_at timestamp
+session_id int [not null]
+enrollments_id int
+justification_id int [unique]
+}
+Table justifications {
+id int [pk]
+comment varchar
+file_url varchar
+status JustificationStatus [default: 'PENDING']
+created_at timestamp
+}
+Table notifications {
+id int [pk]
+title varchar [not null]
+message varchar [not null]
+type NotificationType [not null]
+created_at timestamp
+is_read boolean [default: false]
+attendence_record_id int
+}
+Table report {
+id int [pk]
+content varchar [not null]
+period_start timestamp [not null]
+period_end timestamp [not null]
+generated_date timestamp
+pdf_url varchar
+excel_url varchar
+admin_id int [not null]
+}
+Enum AttendanceStatus {
+PRESENT
+ABSENT
+EXCLUDED
+}
+Enum JustificationStatus {
+PENDING
+APPROVED
+REJECTED
+}
+Enum NotificationType {
+JUSTIFICATION_SUBMITTED
+JUSTIFICATION_REJECTED
+JUSTIFICATION_APPROVED
+}
+Enum ScheduleDays {
+MONDAY
+TUESDAY
+WEDNESDAY
+THURSDAY
+FRIDAY
+SATURDAY
+SUNDAY
+}
+Ref: students.user_id > users.id // one-to-one: Student to User
+Ref: teacher.user_id > users.id // one-to-one: Teacher to User
+Ref: admins.user_id > users.id // one-to-one: Admin to User
+Ref: students.level_id > level.id // many-to-one: Students to Level
+Ref: module.level_id > level.id // many-to-one: Modules to Level
+Ref: enrollments.student_id > students.id // many-to-one: Enrollments to Student
+Ref: enrollments.module_id > module.id // many-to-one: Enrollments to Module
+Ref: schedule.level_id > level.id // one-to-one: Schedule to Level (unique)
+Ref: s_day.schedule_id > schedule.id // many-to-one: SDays to Schedule
+Ref: s_day.module_id > module.id // many-to-one: SDays to Module
+Ref: teacher_modules.teacher_id > teacher.id // many-to-one: TeacherModules to Teacher
+Ref: teacher_modules.module_id > module.id // many-to-one: TeacherModules to Module
+Ref: sessions.teacher_module_id > teacher_modules.id // many-to-one: Sessions to TeacherModules
+Ref: attendance_records.session_id > sessions.id // many-to-one: AttendanceRecords to Session
+Ref: attendance_records.enrollments_id > enrollments.id // many-to-one: AttendanceRecords to Enrollments
+Ref: attendance_records.justification_id > justifications.id // one-to-one: AttendanceRecord to Justification (optional, unique)
+Ref: notifications.attendence_record_id > attendance_records.id // many-to-one: Notifications to AttendanceRecord (optional)
+Ref: report.admin_id > admins.id // many-to-one: Reports to User (as per code, FK to users.id)

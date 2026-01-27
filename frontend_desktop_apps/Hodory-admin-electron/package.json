@@ -1,0 +1,55 @@
+{
+  "name": "hodory-admin-electron",
+  "version": "0.1.0",
+  "description": "Hodory Admin desktop app (Electron + Next.js).",
+  "homepage": "https://example.com/hodory",
+  "private": true,
+  "author": {
+    "name": "Hodory",
+    "email": "dev@hodory.local"
+  },
+  "main": "main.cjs",
+  "scripts": {
+    "dev:next": "npm --prefix ../Hodory-admin run dev -- -p 3000",
+    "dev:electron": "node scripts/ensure-electron.cjs && wait-on http://127.0.0.1:3000 http-get://127.0.0.1:3000/api/backend/health && env -u ELECTRON_RUN_AS_NODE electron .",
+    "dev": "concurrently -k -n next,electron -c blue,green \"npm run dev:next\" \"npm run dev:electron\"",
+    "build:next": "npm --prefix ../Hodory-admin run build",
+    "prepare:next": "node scripts/prepare-next.cjs",
+    "dist:linux": "node scripts/ensure-electron.cjs && npm run build:next && npm run prepare:next && env -u ELECTRON_RUN_AS_NODE electron-builder --linux AppImage",
+    "dist:rpm": "node scripts/ensure-electron.cjs && npm run build:next && npm run prepare:next && env -u ELECTRON_RUN_AS_NODE electron-builder --linux rpm"
+  },
+  "dependencies": {
+    "wait-on": "^8.0.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "electron": "^34.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.hodory.admin",
+    "productName": "Hodory Admin",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "next",
+        "to": "next"
+      }
+    ],
+    "asar": true,
+    "linux": {
+      "category": "Education",
+      "maintainer": "Hodory <dev@hodory.local>",
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}
+

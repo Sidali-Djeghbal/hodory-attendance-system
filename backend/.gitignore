@@ -1,0 +1,30 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.log
+*.sqlite3
+venv/
+/.venv/
+__pycache__/
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+dist/
+build/
+*.egg-info/
+.DS_Store
+.vscode/
+*.iml
+
+# env files (keep examples)
+.env
+.env.*
+!.env.local.example
+
+# runtime uploads (generated files)
+uploads/

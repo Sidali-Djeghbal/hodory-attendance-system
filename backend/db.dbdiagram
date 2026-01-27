@@ -1,0 +1,372 @@
+{
+  "version": "1.0.0",
+  "darkMode": true,
+  "gridEnabling": false,
+  "detailLevel": "All",
+  "tablePositions": [
+    {
+      "name": "users",
+      "schemaName": "public",
+      "x": 584.5591857913331,
+      "y": -949.9451492362529
+    },
+    {
+      "name": "students",
+      "schemaName": "public",
+      "x": -517.9155587262185,
+      "y": -646.3069236414756
+    },
+    {
+      "name": "teacher",
+      "schemaName": "public",
+      "x": 632.0256241182449,
+      "y": -504.4224648857639
+    },
+    {
+      "name": "admins",
+      "schemaName": "public",
+      "x": 1127.9460962859728,
+      "y": -617.6915706151135
+    },
+    {
+      "name": "level",
+      "schemaName": "public",
+      "x": -718.3142061475708,
+      "y": 269.384852302285
+    },
+    {
+      "name": "module",
+      "schemaName": "public",
+      "x": -127.17934678383108,
+      "y": 669.153359156414
+    },
+    {
+      "name": "enrollments",
+      "schemaName": "public",
+      "x": 447.1148910369062,
+      "y": 410.61514769771503
+    },
+    {
+      "name": "schedule",
+      "schemaName": "public",
+      "x": -741.9877368950443,
+      "y": -40.474097926186204
+    },
+    {
+      "name": "s_day",
+      "schemaName": "public",
+      "x": -1039.2937244991201,
+      "y": 638.3590357820739
+    },
+    {
+      "name": "teacher_modules",
+      "schemaName": "public",
+      "x": 399.6429395817684,
+      "y": 97.7915674592362
+    },
+    {
+      "name": "sessions",
+      "schemaName": "public",
+      "x": 1044.424776234914,
+      "y": -272.8254893449289
+    },
+    {
+      "name": "attendance_records",
+      "schemaName": "public",
+      "x": 1100.2286169093425,
+      "y": 896.3871061589646
+    },
+    {
+      "name": "justifications",
+      "schemaName": "public",
+      "x": 738.523022709494,
+      "y": 1379.8541458912855
+    },
+    {
+      "name": "notifications",
+      "schemaName": "public",
+      "x": 892.3676910706157,
+      "y": 97.97057852642033
+    },
+    {
+      "name": "report",
+      "schemaName": "public",
+      "x": 1585.7468177801393,
+      "y": -848.1665942392873
+    }
+  ],
+  "tableGroupCollapseStates": [],
+  "stickyNoteLayouts": [],
+  "referencePaths": [
+    {
+      "firstFieldNames": [
+        "user_id"
+      ],
+      "firstTableName": "students",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "users",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "user_id"
+      ],
+      "firstTableName": "teacher",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "users",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "user_id"
+      ],
+      "firstTableName": "admins",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "users",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "level_id"
+      ],
+      "firstTableName": "students",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "level",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "level_id"
+      ],
+      "firstTableName": "module",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "level",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "student_id"
+      ],
+      "firstTableName": "enrollments",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "students",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "module_id"
+      ],
+      "firstTableName": "enrollments",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "module",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "level_id"
+      ],
+      "firstTableName": "schedule",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "level",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "schedule_id"
+      ],
+      "firstTableName": "s_day",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "schedule",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "module_id"
+      ],
+      "firstTableName": "s_day",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "module",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "teacher_id"
+      ],
+      "firstTableName": "teacher_modules",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "teacher",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "module_id"
+      ],
+      "firstTableName": "teacher_modules",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "module",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "teacher_module_id"
+      ],
+      "firstTableName": "sessions",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "teacher_modules",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "session_id"
+      ],
+      "firstTableName": "attendance_records",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "sessions",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "enrollments_id"
+      ],
+      "firstTableName": "attendance_records",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "enrollments",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "justification_id"
+      ],
+      "firstTableName": "attendance_records",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "justifications",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "attendence_record_id"
+      ],
+      "firstTableName": "notifications",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "attendance_records",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "admin_id"
+      ],
+      "firstTableName": "report",
+      "firstSchemaName": "public",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "admins",
+      "secondSchemaName": "public",
+      "secondRelation": "1",
+      "checkPoints": []
+    }
+  ]
+}

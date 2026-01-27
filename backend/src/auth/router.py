@@ -1,0 +1,336 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlmodel import Session, select
+from datetime import datetime, timedelta
+from typing import Optional
+import jwt
+
+from ..core.database import get_session
+from ..core.config import settings
+from ..models.user import User
+from ..models.student import Student
+from ..models.teacher import Teacher
+from ..models.admin import Admin
+from .schemas import (
+    UserCreate, UserRead, UserUpdate,
+    StudentRegistration, TeacherRegistration, AdminRegistration,
+    LoginRequest
+)
+from .backend import get_jwt_strategy
+
+auth_router = APIRouter(tags=["Authentication"])
+
+# Password hashing using bcrypt directly
+import bcrypt
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    # JWT spec requires 'sub' to be a string
+    if "sub" in to_encode:
+        to_encode["sub"] = str(to_encode["sub"])
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+    statement = select(User).where(User.email == email)
+    user = db.exec(statement).first()
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+# ==================== LOGIN ====================
+@auth_router.post("/login")
+async def login(
+    login_data: LoginRequest,
+    db: Session = Depends(get_session)
+):
+    """Login for all users (student, teacher, admin)"""
+    user = authenticate_user(db, login_data.email, login_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+    
+    access_token = create_access_token(
+        data={"sub": user.id, "email": user.email, "role": user.role}
+    )
+    
+    return {
+        "success": True,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "department": user.department
+        }
+    }
+
+# ==================== REGISTER STUDENT ====================
+@auth_router.post("/register/student", status_code=status.HTTP_201_CREATED)
+async def register_student(
+    registration: StudentRegistration,
+    db: Session = Depends(get_session)
+):
+    """Register a new student"""
+    # Check if email already exists
+    existing_user = db.exec(select(User).where(User.email == registration.user.email)).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create user
+    user = User(
+        full_name=registration.user.full_name,
+        email=registration.user.email,
+        department=registration.user.department,
+        hashed_password=get_password_hash(registration.user.password),
+        role="student",
+        is_active=True,
+        is_verified=False
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create student profile
+    student = Student(
+        user_id=user.id
+        # level_id commented out for auth testing
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+    
+    return {
+        "success": True,
+        "message": "Student registered successfully",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role
+        }
+    }
+
+# ==================== REGISTER TEACHER ====================
+@auth_router.post("/register/teacher", status_code=status.HTTP_201_CREATED)
+async def register_teacher(
+    registration: TeacherRegistration,
+    db: Session = Depends(get_session)
+):
+    """Register a new teacher"""
+    # Check if email already exists
+    existing_user = db.exec(select(User).where(User.email == registration.user.email)).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create user
+    user = User(
+        full_name=registration.user.full_name,
+        email=registration.user.email,
+        department=registration.user.department,
+        hashed_password=get_password_hash(registration.user.password),
+        role="teacher",
+        is_active=True,
+        is_verified=False
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create teacher profile
+    teacher = Teacher(
+        user_id=user.id
+    )
+    db.add(teacher)
+    db.commit()
+    db.refresh(teacher)
+    
+    return {
+        "success": True,
+        "message": "Teacher registered successfully",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role
+        }
+    }
+
+# ==================== REGISTER ADMIN ====================
+@auth_router.post("/register/admin", status_code=status.HTTP_201_CREATED)
+async def register_admin(
+    registration: AdminRegistration,
+    db: Session = Depends(get_session)
+):
+    """Register a new admin"""
+    # Check if email already exists
+    existing_user = db.exec(select(User).where(User.email == registration.user.email)).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create user
+    user = User(
+        full_name=registration.user.full_name,
+        email=registration.user.email,
+        department=registration.user.department,
+        hashed_password=get_password_hash(registration.user.password),
+        role="admin",
+        is_active=True,
+        is_verified=False,
+        is_superuser=True
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create admin profile
+    admin = Admin(
+        user_id=user.id
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    
+    return {
+        "success": True,
+        "message": "Admin registered successfully",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role
+        }
+    }
+
+# ==================== GET CURRENT USER ====================
+from fastapi.security import OAuth2PasswordBearer
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_session)
+) -> User:
+    """Get current authenticated user"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            raise credentials_exception
+        user_id = int(user_id_str)  # Convert back to int
+    except jwt.PyJWTError:
+        raise credentials_exception
+    except ValueError:
+        raise credentials_exception
+    
+    user = db.exec(select(User).where(User.id == user_id)).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Get current active user"""
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+# Role-based dependencies
+async def get_current_student(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Get current user if they are a student"""
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Students only."
+        )
+    return current_user
+
+async def get_current_teacher(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Get current user if they are a teacher"""
+    if current_user.role != "teacher":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Teachers only."
+        )
+    return current_user
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Get current user if they are an admin"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admins only."
+        )
+    return current_user
+
+async def get_current_teacher_or_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Get current user if they are a teacher or admin"""
+    if current_user.role not in ["teacher", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Teachers or Admins only."
+        )
+    return current_user
+
+@auth_router.get("/me")
+async def get_me(current_user: User = Depends(get_current_active_user)):
+    """Get current user profile"""
+    return {
+        "success": True,
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "role": current_user.role,
+            "department": current_user.department,
+            "is_active": current_user.is_active,
+            "is_verified": current_user.is_verified,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+        }
+    }
