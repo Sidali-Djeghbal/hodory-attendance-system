@@ -19,8 +19,6 @@
 
  Hodory is an attendance management system for optimizing attendance tracking and management in educational institutions.
 
-> Status: under development (not finished yet).
-
 
 ## Screenshots
 
